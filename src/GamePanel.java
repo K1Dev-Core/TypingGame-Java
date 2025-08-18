@@ -100,11 +100,6 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
             drawBars(g2);
         }
 
-        if (state == GameConfig.State.READY)
-            splash(g2, "พร้อมเริ่มเกม");
-        else if (state == GameConfig.State.GAMEOVER)
-            splash(g2, "เกมจบแล้ว");
-
         g2.dispose();
     }
 
@@ -130,8 +125,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
     }
 
     private void drawGameHUD(Graphics2D g2, int mm, int ss, double wpm, double acc) {
-        g2.setColor(new Color(0, 0, 0, 120));
-        g2.fillRoundRect(16, 16, 280, 120, 12, 12);
+
 
         g2.setFont(new Font("SansSerif", Font.BOLD, 16));
         g2.setColor(new Color(255, 215, 0));
@@ -211,17 +205,6 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         g2.setFont(new Font("SansSerif", Font.PLAIN, 11));
         g2.setColor(new Color(255, 215, 0));
         g2.drawString("BONUS TIME", timerX, timerY - 4);
-    }
-
-    private void splash(Graphics2D g2, String msg) {
-        g2.setFont(new Font("SansSerif", Font.BOLD, 30));
-        FontMetrics fm = g2.getFontMetrics();
-        int x = (getWidth() - fm.stringWidth(msg)) / 2;
-        int y = getHeight() / 2 + 120;
-        g2.setColor(new Color(0, 0, 0, 100));
-        g2.drawString(msg, x + 2, y + 2);
-        g2.setColor(new Color(240, 240, 240));
-        g2.drawString(msg, x, y);
     }
 
     private void drawWord(Graphics2D g2) {
@@ -319,8 +302,6 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         int baseY = getHeight() - 90;
         int baseX = (getWidth() - totalW) / 2;
 
-        g2.setColor(new Color(0, 0, 0, 140));
-        g2.fillRoundRect(baseX - 14, baseY - 30, totalW + 28, 44, 14, 14);
 
         g2.setColor(Color.WHITE);
         g2.drawString(pre, baseX, baseY);
