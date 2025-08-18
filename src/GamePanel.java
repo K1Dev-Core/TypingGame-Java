@@ -2,6 +2,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
@@ -14,7 +15,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
     private final SoundPool sStart=new SoundPool("./wav/click6_1.wav",4);
     private final SoundPool sType=new SoundPool(GameConfig.CLICK_WAV_PATH,6);
     private final SoundPool sErr=new SoundPool("./wav/click14_3.wav",4);
-    
+    private final SoundPool sClick=new SoundPool("./wav/click15_1.wav",6);
             
     private final List<WordEntry> wordBank = WordBank.loadWordBank();
 
@@ -61,14 +62,28 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
     private static final Color CLR_BAR_FRAME = new Color(0, 0, 0, 120);
     private static final Color CLR_PROG_BG = new Color(40, 40, 40);
     private static final Color CLR_PROG_LABEL = new Color(200, 200, 200);
-
-    private final Font fontSmall12 = new Font("SansSerif", Font.PLAIN, 12);
-    private final Font fontSmall11 = new Font("SansSerif", Font.PLAIN, 11);
-    private final Font fontBold16 = new Font("SansSerif", Font.BOLD, 16);
-    private final Font fontBold20 = new Font("SansSerif", Font.BOLD, 20);
-    private final Font fontPlain16 = new Font("SansSerif", Font.PLAIN, 16);
+    private Font fontSmall12;
+    private Font fontSmall11;
+    private Font fontBold16;
+    private Font fontBold20;
+    private Font fontPlain16;
 
     public GamePanel() {
+        try {
+            Font mcFont = Font.createFont(Font.TRUETYPE_FONT, new File("./Minecraft-TenTH.ttf"));
+            GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+            ge.registerFont(mcFont);
+
+            fontSmall12 = mcFont.deriveFont(Font.PLAIN, 20f);
+            fontSmall11 = mcFont.deriveFont(Font.PLAIN, 11f);
+            fontBold16 = mcFont.deriveFont(Font.BOLD, 16f);
+            fontBold20 = mcFont.deriveFont(Font.BOLD, 20f);
+            fontPlain16 = mcFont.deriveFont(Font.PLAIN, 16f);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+
+        }
         setPreferredSize(new Dimension(1100, 620));
         setBackground(CLR_PANEL_BG);
         setFocusable(true);
@@ -91,6 +106,12 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
             setCursor(customCursor);
         } catch (Exception ignored) {
         }
+        addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                sClick.play();
+            }
+        });
         warmupAtlas();
         timer.start();
     }
@@ -178,20 +199,20 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
     private void drawGameHUD(Graphics2D g2, int mm, int ss, double wpm, double acc) {
         g2.setFont(fontBold16);
         g2.setColor(CLR_TIME);
-        g2.drawString(String.format("เวลา: %02d:%02d", mm, ss), 28, 40);
+        g2.drawString(String.format("เวลา: %02d:%02d", mm, ss), 28, 42);
 
         g2.setColor(CLR_WPM);
-        g2.drawString(String.format(Locale.US, "WPM: %.1f", wpm), 28, 62);
+        g2.drawString(String.format(Locale.US, "WPM: %.1f", wpm), 28, 70);
 
         g2.setColor(CLR_ACC);
-        g2.drawString(String.format(Locale.US, "ความแม่นยำ: %.0f%%", acc), 28, 84);
+        g2.drawString(String.format(Locale.US, "ความแม่นยำ: %.0f%%", acc), 28, 95);
 
         g2.setColor(CLR_DONE);
-        g2.drawString(String.format("คำที่ทำได้: %d", wordsCompleted), 28, 106);
+        g2.drawString(String.format("คำที่ทำได้: %d", wordsCompleted), 28, 120);
 
         if (bonusStreak > 0) {
             g2.setColor(CLR_BONUS);
-            g2.drawString(String.format("โบนัส: x%d", bonusStreak), 28, 128);
+            g2.drawString(String.format("โบนัส: x%d", bonusStreak), 28, 148);
         }
     }
 
@@ -224,7 +245,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         String healthText = String.format("HP %d/%d", health, GameConfig.MAX_HEALTH);
         FontMetrics fm = g2.getFontMetrics();
         int textX = barX + (barW - fm.stringWidth(healthText)) / 2;
-        g2.drawString(healthText, textX, barY + 14);
+        g2.drawString(healthText, textX, barY + 16);
     }
 
     private void drawBonusTimer(Graphics2D g2, long now) {
@@ -425,6 +446,15 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         }
         idx = 0;
         wordStartMs = System.currentTimeMillis();
+        new Thread(() -> {
+            try {
+                SlowTTS tts = new SlowTTS("kevin16", 110);
+                tts.speak(current.word);
+                tts.close();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }).start();
     }
 
     private void resetRun() {
