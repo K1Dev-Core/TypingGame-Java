@@ -11,7 +11,11 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
     private final Random rng = new Random();
     private final KeyAtlas atlas = new KeyAtlas(GameConfig.ASSETS_DIR, GameConfig.FILE_EXT,
             GameConfig.TWO_FRAMES_PER_FILE, GameConfig.CHAR_SET);
-    private final SoundFX sfx = new SoundFX(GameConfig.CLICK_WAV_PATH);
+    private final SoundPool sStart=new SoundPool("./wav/click6_1.wav",4);
+    private final SoundPool sType=new SoundPool(GameConfig.CLICK_WAV_PATH,6);
+    private final SoundPool sErr=new SoundPool("./wav/click14_3.wav",4);
+    
+            
     private final List<WordEntry> wordBank = WordBank.loadWordBank();
 
     private GameConfig.State state = GameConfig.State.READY;
@@ -41,10 +45,34 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
     private int frames = 0;
     private int fps = 0;
 
+    private static final Color CLR_FLASH = new Color(180, 30, 40, 80);
+    private static final Color CLR_BONUS_TINT = new Color(255, 215, 0, 60);
+    private static final Color CLR_PANEL_BG = new Color(18, 20, 24);
+    private static final Color CLR_BOX_SHADOW = new Color(0, 0, 0, 70);
+    private static final Color CLR_HUD_PANEL = new Color(0, 0, 0, 120);
+    private static final Color CLR_HUD_TEXT = Color.WHITE;
+    private static final Color CLR_WPM = new Color(100, 200, 255);
+    private static final Color CLR_ACC = new Color(150, 255, 150);
+    private static final Color CLR_DONE = new Color(255, 150, 255);
+    private static final Color CLR_BONUS = new Color(255, 100, 100);
+    private static final Color CLR_TIME = new Color(255, 215, 0);
+    private static final Color CLR_BAR_BG_OUTLINE = new Color(255, 255, 255, 100);
+    private static final Color CLR_BAR_BG = new Color(60, 60, 60);
+    private static final Color CLR_BAR_FRAME = new Color(0, 0, 0, 120);
+    private static final Color CLR_PROG_BG = new Color(40, 40, 40);
+    private static final Color CLR_PROG_LABEL = new Color(200, 200, 200);
+
+    private final Font fontSmall12 = new Font("SansSerif", Font.PLAIN, 12);
+    private final Font fontSmall11 = new Font("SansSerif", Font.PLAIN, 11);
+    private final Font fontBold16 = new Font("SansSerif", Font.BOLD, 16);
+    private final Font fontBold20 = new Font("SansSerif", Font.BOLD, 20);
+    private final Font fontPlain16 = new Font("SansSerif", Font.PLAIN, 16);
+
     public GamePanel() {
         setPreferredSize(new Dimension(1100, 620));
-        setBackground(new Color(18, 20, 24));
+        setBackground(CLR_PANEL_BG);
         setFocusable(true);
+        setDoubleBuffered(true);
         addKeyListener(this);
         try {
             spaceSheet = javax.imageio.ImageIO.read(new java.io.File("./keys/SPACE.png"));
@@ -63,8 +91,29 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
             setCursor(customCursor);
         } catch (Exception ignored) {
         }
-
+        warmupAtlas();
         timer.start();
+    }
+
+    private void warmupAtlas() {
+        try {
+            String set = GameConfig.CHAR_SET == null ? "" : GameConfig.CHAR_SET;
+            for (char c : set.toCharArray()) {
+                atlas.getNormal(c);
+                atlas.getPressed(c);
+            }
+            for (char c = 'A'; c <= 'Z'; c++) {
+                atlas.getNormal(c);
+                atlas.getPressed(c);
+            }
+            for (char c = '0'; c <= '9'; c++) {
+                atlas.getNormal(c);
+                atlas.getPressed(c);
+            }
+            atlas.getNormal(' ');
+            atlas.getPressed(' ');
+        } catch (Exception ignored) {
+        }
     }
 
     @Override
@@ -73,25 +122,27 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        if (System.currentTimeMillis() < flashUntil) {
-            g2.setColor(new Color(180, 30, 40, 80));
+        long now = System.currentTimeMillis();
+
+        if (now < flashUntil) {
+            g2.setColor(CLR_FLASH);
             g2.fillRect(0, 0, getWidth(), getHeight());
         }
 
-        if (System.currentTimeMillis() < bonusUntil) {
-            g2.setColor(new Color(255, 215, 0, 60));
+        if (now < bonusUntil) {
+            g2.setColor(CLR_BONUS_TINT);
             g2.fillRect(0, 0, getWidth(), getHeight());
         }
 
-        drawHUD(g2);
+        drawHUD(g2, now);
 
         int shakeX = 0, shakeY = 0;
-        if (System.currentTimeMillis() < shakeUntil) {
+        if (now < shakeUntil) {
             shakeX = rng.nextInt(shakeAmp * 2 + 1) - shakeAmp;
             shakeY = rng.nextInt(shakeAmp * 2 + 1) - shakeAmp;
         }
         g2.translate(shakeX, shakeY);
-        drawWord(g2);
+        drawWord(g2, now);
         g2.translate(-shakeX, -shakeY);
 
         drawFooterInfo(g2);
@@ -103,45 +154,43 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         g2.dispose();
     }
 
-    private void drawHUD(Graphics2D g2) {
+    private void drawHUD(Graphics2D g2, long now) {
         long left = state == GameConfig.State.PLAYING
-                ? Math.max(0, GameConfig.ROUND_SECONDS * 1000L - (System.currentTimeMillis() - startMs))
+                ? Math.max(0, GameConfig.ROUND_SECONDS * 1000L - (now - startMs))
                 : GameConfig.ROUND_SECONDS * 1000L;
         int mm = (int) (left / 1000) / 60;
         int ss = (int) (left / 1000) % 60;
         double minutes = state == GameConfig.State.PLAYING
-                ? Math.max(1e-6, (System.currentTimeMillis() - startMs) / 60000.0)
+                ? Math.max(1e-6, (now - startMs) / 60000.0)
                 : 0;
         double wpm = minutes > 0 ? (correct / 5.0) / minutes : 0.0;
         double acc = totalTyped == 0 ? 100.0 : 100.0 * (totalTyped - mistakes) / totalTyped;
 
         drawGameHUD(g2, mm, ss, wpm, acc);
         drawHealthBar(g2);
-        drawBonusTimer(g2);
+        drawBonusTimer(g2, now);
 
-        g2.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        g2.setColor(Color.WHITE);
+        g2.setFont(fontSmall12);
+        g2.setColor(CLR_HUD_TEXT);
         g2.drawString("FPS: " + fps, getWidth() - 70, getHeight() - 20);
     }
 
     private void drawGameHUD(Graphics2D g2, int mm, int ss, double wpm, double acc) {
-
-
-        g2.setFont(new Font("SansSerif", Font.BOLD, 16));
-        g2.setColor(new Color(255, 215, 0));
+        g2.setFont(fontBold16);
+        g2.setColor(CLR_TIME);
         g2.drawString(String.format("เวลา: %02d:%02d", mm, ss), 28, 40);
 
-        g2.setColor(new Color(100, 200, 255));
+        g2.setColor(CLR_WPM);
         g2.drawString(String.format(Locale.US, "WPM: %.1f", wpm), 28, 62);
 
-        g2.setColor(new Color(150, 255, 150));
+        g2.setColor(CLR_ACC);
         g2.drawString(String.format(Locale.US, "ความแม่นยำ: %.0f%%", acc), 28, 84);
 
-        g2.setColor(new Color(255, 150, 255));
+        g2.setColor(CLR_DONE);
         g2.drawString(String.format("คำที่ทำได้: %d", wordsCompleted), 28, 106);
 
         if (bonusStreak > 0) {
-            g2.setColor(new Color(255, 100, 100));
+            g2.setColor(CLR_BONUS);
             g2.drawString(String.format("โบนัส: x%d", bonusStreak), 28, 128);
         }
     }
@@ -152,7 +201,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         int barW = 180;
         int barH = 20;
 
-        g2.setColor(new Color(0, 0, 0, 120));
+        g2.setColor(CLR_HUD_PANEL);
         g2.fillRoundRect(barX - 4, barY - 4, barW + 8, barH + 8, 12, 12);
 
         g2.setColor(new Color(60, 60, 60));
@@ -167,22 +216,22 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         g2.setColor(healthColor);
         g2.fillRoundRect(barX, barY, healthW, barH, 8, 8);
 
-        g2.setColor(new Color(255, 255, 255, 100));
+        g2.setColor(CLR_BAR_BG_OUTLINE);
         g2.drawRoundRect(barX, barY, barW, barH, 8, 8);
 
-        g2.setFont(new Font("SansSerif", Font.BOLD, 12));
-        g2.setColor(Color.WHITE);
+        g2.setFont(fontSmall12);
+        g2.setColor(CLR_HUD_TEXT);
         String healthText = String.format("HP %d/%d", health, GameConfig.MAX_HEALTH);
         FontMetrics fm = g2.getFontMetrics();
         int textX = barX + (barW - fm.stringWidth(healthText)) / 2;
         g2.drawString(healthText, textX, barY + 14);
     }
 
-    private void drawBonusTimer(Graphics2D g2) {
+    private void drawBonusTimer(Graphics2D g2, long now) {
         if (state != GameConfig.State.PLAYING || wordStartMs == 0)
             return;
 
-        long elapsed = System.currentTimeMillis() - wordStartMs;
+        long elapsed = now - wordStartMs;
         if (elapsed >= BONUS_TIME_MS)
             return;
 
@@ -192,22 +241,22 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         int timerW = 180;
         int timerH = 10;
 
-        g2.setColor(new Color(0, 0, 0, 120));
+        g2.setColor(CLR_HUD_PANEL);
         g2.fillRoundRect(timerX - 2, timerY - 2, timerW + 4, timerH + 4, 8, 8);
 
-        g2.setColor(new Color(40, 40, 40));
+        g2.setColor(CLR_PROG_BG);
         g2.fillRoundRect(timerX, timerY, timerW, timerH, 6, 6);
 
         int bonusW = (int) (timerW * timeLeft);
-        g2.setColor(new Color(255, 215, 0));
+        g2.setColor(CLR_TIME);
         g2.fillRoundRect(timerX, timerY, bonusW, timerH, 6, 6);
 
-        g2.setFont(new Font("SansSerif", Font.PLAIN, 11));
-        g2.setColor(new Color(255, 215, 0));
+        g2.setFont(fontSmall11);
+        g2.setColor(CLR_TIME);
         g2.drawString("BONUS TIME", timerX, timerY - 4);
     }
 
-    private void drawWord(Graphics2D g2) {
+    private void drawWord(Graphics2D g2, long now) {
         if (current == null || current.word.isEmpty())
             return;
 
@@ -215,7 +264,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         int keyW = keyDim.width * GameConfig.SCALE;
         int keyH = keyDim.height * GameConfig.SCALE;
         int totalW = current.word.length() * keyW + (current.word.length() - 1) * GameConfig.KEY_SPACING;
-        double scale = (System.currentTimeMillis() < popUntil) ? 1.06 : 1.0;
+        double scale = (now < popUntil) ? 1.06 : 1.0;
         int cx = getWidth() / 2, cy = getHeight() / 2 - 60;
         int x0 = cx - (int) (totalW * scale) / 2;
         int y = cy - (int) (keyH * scale) / 2;
@@ -230,7 +279,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         for (int i = 0; i < current.word.length(); i++) {
             char ch = current.word.charAt(i);
             int x = x0 + i * (keyW + GameConfig.KEY_SPACING);
-            gg.setColor(new Color(0, 0, 0, 70));
+            gg.setColor(CLR_BOX_SHADOW);
             gg.fillRoundRect(x - 6, y - 6, keyW + 12, keyH + 12, 18, 18);
             BufferedImage img = (i < idx) ? atlas.getPressed(ch) : atlas.getNormal(ch);
             gg.drawImage(img, x, y, keyW, keyH, null);
@@ -259,15 +308,15 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         int boxH = 70;
         int boxY = cy - boxH / 2;
 
-        g2.setColor(new Color(0, 0, 0, 120));
+        g2.setColor(CLR_HUD_PANEL);
         g2.fillRoundRect(boxX, boxY, boxW, boxH, 15, 15);
 
-        g2.setColor(new Color(255, 255, 255));
-        g2.setFont(new Font("SansSerif", Font.BOLD, 20));
+        g2.setColor(Color.WHITE);
+        g2.setFont(fontBold20);
         centerTextAt(g2, title, cx, cy - 15);
 
         g2.setColor(new Color(220, 220, 220));
-        g2.setFont(new Font("SansSerif", Font.PLAIN, 16));
+        g2.setFont(fontPlain16);
         centerTextAt(g2, sub1 + " • " + sub2, cx, cy + 8);
     }
 
@@ -283,7 +332,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
                 : (spaceAnimOn && spaceFramePressed != null ? spaceFramePressed : spaceFrameNormal);
 
         if (frame == null) {
-            g2.setFont(new Font("SansSerif", Font.BOLD, 16));
+            g2.setFont(fontBold16);
             g2.setColor(Color.WHITE);
             String text = state == GameConfig.State.READY ? "กด SPACE เพื่อเริ่มเกม" : "กด SPACE เพื่อเริ่มใหม่";
             centerText(g2, text, getHeight() - 60);
@@ -292,7 +341,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
 
         String pre = "กด ";
         String post = state == GameConfig.State.READY ? " เพื่อเริ่มเกม" : " เพื่อเริ่มใหม่";
-        g2.setFont(new Font("SansSerif", Font.BOLD, 20));
+        g2.setFont(fontBold20);
         FontMetrics fm = g2.getFontMetrics();
 
         int spriteH = 26;
@@ -301,7 +350,6 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
 
         int baseY = getHeight() - 90;
         int baseX = (getWidth() - totalW) / 2;
-
 
         g2.setColor(Color.WHITE);
         g2.drawString(pre, baseX, baseY);
@@ -326,10 +374,10 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
 
     private void drawProgressBar(Graphics2D g2, int x, int y, int w, int h, double progress,
             String label, Color color1, Color color2) {
-        g2.setColor(new Color(0, 0, 0, 120));
+        g2.setColor(CLR_BAR_FRAME);
         g2.fillRoundRect(x - 2, y - 2, w + 4, h + 4, 16, 16);
 
-        g2.setColor(new Color(40, 40, 40));
+        g2.setColor(CLR_PROG_BG);
         g2.fillRoundRect(x, y, w, h, 12, 12);
 
         if (progress > 0) {
@@ -346,8 +394,8 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         g2.setColor(new Color(255, 255, 255, 80));
         g2.drawRoundRect(x, y, w, h, 12, 12);
 
-        g2.setFont(new Font("SansSerif", Font.PLAIN, 12));
-        g2.setColor(new Color(200, 200, 200));
+        g2.setFont(fontSmall12);
+        g2.setColor(CLR_PROG_LABEL);
         FontMetrics fm = g2.getFontMetrics();
         int labelX = x + (w - fm.stringWidth(label)) / 2;
         g2.drawString(label, labelX, y - 6);
@@ -410,7 +458,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         if (code == KeyEvent.VK_BACK_SPACE) {
             if (idx > 0) {
                 idx--;
-                sfx.type();
+                sStart.play(); 
             }
             return;
         }
@@ -433,10 +481,11 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
     }
 
     private void handleChar(char c) {
-        sfx.type();
+    
         totalTyped++;
 
         if (idx < current.word.length() && c == current.word.charAt(idx)) {
+            sType.play();
             idx++;
             correct++;
             popUntil = System.currentTimeMillis() + 90;
@@ -448,6 +497,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         } else {
             mistakes++;
             bonusStreak = 0;
+            sErr.play();
             long now = System.currentTimeMillis();
             flashUntil = now + 120;
             shakeUntil = now + 220;
@@ -475,13 +525,14 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
 
     @Override
     public void actionPerformed(ActionEvent e) {
+        long now = System.currentTimeMillis();
+
         if (state == GameConfig.State.PLAYING) {
-            if (System.currentTimeMillis() - startMs >= GameConfig.ROUND_SECONDS * 1000L) {
+            if (now - startMs >= GameConfig.ROUND_SECONDS * 1000L) {
                 state = GameConfig.State.GAMEOVER;
             }
         }
 
-        long now = System.currentTimeMillis();
         if (state == GameConfig.State.READY || state == GameConfig.State.GAMEOVER) {
             if (now - spaceAnimLast >= SPACE_ANIM_MS) {
                 spaceAnimOn = !spaceAnimOn;
