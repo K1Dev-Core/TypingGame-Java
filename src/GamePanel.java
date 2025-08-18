@@ -16,7 +16,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
     private final SoundPool sType=new SoundPool(GameConfig.CLICK_WAV_PATH,6);
     private final SoundPool sErr=new SoundPool("./wav/click14_3.wav",4);
     private final SoundPool sClick=new SoundPool("./wav/click15_1.wav",6);
-            
+    private HitEffect hit = new HitEffect("./effect/hit-sprite-sheet.png");
     private final List<WordEntry> wordBank = WordBank.loadWordBank();
 
     private GameConfig.State state = GameConfig.State.READY;
@@ -89,6 +89,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         setFocusable(true);
         setDoubleBuffered(true);
         addKeyListener(this);
+
         try {
             spaceSheet = javax.imageio.ImageIO.read(new java.io.File("./keys/SPACE.png"));
             if (spaceSheet != null) {
@@ -110,8 +111,29 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
             @Override
             public void mouseClicked(MouseEvent e) {
                 sClick.play();
+                hit.playAt(e.getX(), e.getY());
             }
         });
+        addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                System.out.println(5555555);
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                System.out.println(33333);
+            }
+        });
+
+        addMouseMotionListener(new MouseMotionAdapter() {
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                hit.playAt(e.getX(), e.getY());
+
+            }
+        });
+
         warmupAtlas();
         timer.start();
     }
@@ -171,6 +193,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         if (state == GameConfig.State.PLAYING) {
             drawBars(g2);
         }
+        hit.draw(g2);
 
         g2.dispose();
     }
@@ -448,7 +471,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         wordStartMs = System.currentTimeMillis();
         new Thread(() -> {
             try {
-                SlowTTS tts = new SlowTTS("kevin16", 110);
+                SlowTTS tts = new SlowTTS("kevin16", 128);
                 tts.speak(current.word);
                 tts.close();
             } catch (Exception e) {
