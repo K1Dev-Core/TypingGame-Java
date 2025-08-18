@@ -67,6 +67,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
     private Font fontBold16;
     private Font fontBold20;
     private Font fontPlain16;
+    private Font fontPlain6;
 
     public GamePanel() {
         try {
@@ -76,6 +77,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
 
             fontSmall12 = mcFont.deriveFont(Font.PLAIN, 20f);
             fontSmall11 = mcFont.deriveFont(Font.PLAIN, 11f);
+            fontPlain6 = mcFont.deriveFont(Font.PLAIN, 6f);
             fontBold16 = mcFont.deriveFont(Font.BOLD, 16f);
             fontBold20 = mcFont.deriveFont(Font.BOLD, 20f);
             fontPlain16 = mcFont.deriveFont(Font.PLAIN, 16f);
@@ -216,7 +218,10 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
 
         g2.setFont(fontSmall12);
         g2.setColor(CLR_HUD_TEXT);
-        g2.drawString("FPS: " + fps, getWidth() - 70, getHeight() - 20);
+        g2.drawString("FPS: " + fps, getWidth() - 75, getHeight() - 20);
+        g2.drawString("@Hex | version dev.", 10, getHeight() - 20);
+        g2.setFont(fontPlain6);
+
     }
 
     private void drawGameHUD(Graphics2D g2, int mm, int ss, double wpm, double acc) {
