@@ -6,8 +6,7 @@ public class App {
         SwingUtilities.invokeLater(() -> {
             JFrame f = new JFrame("Typing • Words");
             f.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
-    
-            
+
             GamePanel gp = new GamePanel();
             f.add(gp);
             f.pack();
