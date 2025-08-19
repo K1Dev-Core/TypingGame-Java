@@ -26,7 +26,7 @@ public class HitEffect {
         }
 
 
-        new Timer(60, e -> {
+        new Timer(25, e -> {
             if (playing) {
                 currentFrame++;
                 if (currentFrame >= frames.size()) {
