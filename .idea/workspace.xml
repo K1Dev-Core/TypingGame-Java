@@ -5,21 +5,13 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8c7691ea-4ece-4811-841b-6a6a7a07c896" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/lib.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/Minecraft-TenTH.ttf" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/cmu_time_awb.jar" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/cmu_us_kal.jar" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/cmudict04.jar" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/cmulex.jar" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/cmutimelex.jar" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/en_us.jar" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/freetts-jsapi10.jar" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/freetts.jar" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/lib/mbrola.jar" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/SlowTTS.java" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/wav/click15_1.wav" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/res/characters/Attack.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/res/characters/Death.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/res/characters/Idle.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/res/characters/Shield.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/res/characters/Take Hit.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/res/characters/Walk.png" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/TypingGame-Java-v.iml" beforeDir="false" afterPath="$PROJECT_DIR$/TypingGame-Java-v.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/GamePanel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/GamePanel.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -45,27 +37,28 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "Application.App.executor": "Run",
-    "Application.Run.executor": "Run",
-    "Application.SlowTTS.executor": "Run",
-    "Application.SystemTTS.executor": "Run",
-    "ModuleVcsDetector.initialDetectionPerformed": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "git-widget-placeholder": "main",
-    "kotlin-language-version-configured": "true",
-    "last_opened_file_path": "E:/TypingGame-Java/lib"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;Application.App.executor&quot;: &quot;Run&quot;,
+    &quot;Application.Run.executor&quot;: &quot;Run&quot;,
+    &quot;Application.SlowTTS.executor&quot;: &quot;Run&quot;,
+    &quot;Application.SystemTTS.executor&quot;: &quot;Run&quot;,
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;E:/TypingGame-Java/lib&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="E:\TypingGame-Java\lib" />
       <recent name="E:\TypingGame-Java\wav" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/res/characters" />
       <recent name="E:\TypingGame-Java\lib" />
       <recent name="E:\TypingGame-Java" />
     </key>

@@ -73,15 +73,81 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
     private Rectangle speedRectSlow, speedRectNormal, speedRectFast;
     private boolean draggingSlider = false;
 
+    enum Anim {IDLE, WALK, ATTACK, TAKE_HIT, DEATH}
+
+    static class Sprite {
+        BufferedImage sheet;
+        int frames;
+        int w;
+        int h;
+        int frame;
+        long lastAt;
+        int msPerFrame;
+        boolean loop;
+        Sprite(BufferedImage sheet, int frames, int msPerFrame, boolean loop) {
+            this.sheet = sheet;
+            this.frames = frames;
+            this.msPerFrame = msPerFrame;
+            this.loop = loop;
+            this.w = sheet.getWidth() / frames;
+            this.h = sheet.getHeight();
+            this.frame = 0;
+            this.lastAt = System.currentTimeMillis();
+        }
+        BufferedImage current() {
+            long now = System.currentTimeMillis();
+            if (now - lastAt >= msPerFrame) {
+                if (loop) frame = (frame + 1) % frames;
+                else if (frame < frames - 1) frame++;
+                lastAt = now;
+            }
+            return sheet.getSubimage(frame * w, 0, w, h);
+        }
+        void reset() { frame = 0; lastAt = System.currentTimeMillis(); }
+        boolean finishedOnce() { return !loop && frame >= frames - 1; }
+    }
+
+    static class SpritePack {
+        Sprite idle, walk, attack, hit, death;
+        SpritePack() {
+            try { idle = new Sprite(javax.imageio.ImageIO.read(new java.io.File("./res/characters/Idle.png")), 4, 120, true); } catch (Exception e) { idle = dummy(true); }
+            try { walk = new Sprite(javax.imageio.ImageIO.read(new java.io.File("./res/characters/Walk.png")), 4, 110, true); } catch (Exception e) { walk = dummy(true); }
+            try { attack = new Sprite(javax.imageio.ImageIO.read(new java.io.File("./res/characters/Attack.png")), 8, 80, false); } catch (Exception e) { attack = dummy(true); }
+            try { hit = new Sprite(javax.imageio.ImageIO.read(new java.io.File("./res/characters/Take Hit.png")), 4, 90, true); } catch (Exception e) { hit = dummy(true); }
+            try { death = new Sprite(javax.imageio.ImageIO.read(new java.io.File("./res/characters/Death.png")), 4, 150, false); } catch (Exception e) { death = dummy(false); }
+        }
+        private Sprite dummy(boolean loop) {
+            BufferedImage b = new BufferedImage(10, 10, BufferedImage.TYPE_INT_ARGB);
+            return new Sprite(b, 1, 1000, loop);
+        }
+    }
+
+    private final SpritePack charPack = new SpritePack();
+    private Anim currentAnim = Anim.IDLE;
+    private long animUntil = 0L;
+    private boolean pendingNextWord = false;
+
     public GamePanel() {
         initFonts();
         initPanel();
-        initSprites();
+        initKeySprites();
         initCursor();
         initMouse();
         warmupAtlas();
         layoutSettingsRects();
         timer.start();
+    }
+
+    private void setAnim(Anim a, long holdMs) {
+        currentAnim = a;
+        switch (a) {
+            case IDLE -> charPack.idle.reset();
+            case WALK -> charPack.walk.reset();
+            case ATTACK -> charPack.attack.reset();
+            case TAKE_HIT -> charPack.hit.reset();
+            case DEATH -> charPack.death.reset();
+        }
+        animUntil = holdMs > 0 ? System.currentTimeMillis() + holdMs : 0L;
     }
 
     private void initFonts() {
@@ -110,7 +176,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         });
     }
 
-    private void initSprites() {
+    private void initKeySprites() {
         try {
             spaceSheet = javax.imageio.ImageIO.read(new java.io.File("./keys/SPACE.png"));
             if (spaceSheet != null) {
@@ -269,6 +335,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         if (now < flashUntil) { g2.setColor(CLR_FLASH); g2.fillRect(0, 0, getWidth(), getHeight()); }
         if (now < bonusUntil) { g2.setColor(CLR_BONUS_TINT); g2.fillRect(0, 0, getWidth(), getHeight()); }
         drawHUD(g2, now);
+        drawCharacter(g2);
         int shakeX = 0, shakeY = 0;
         if (now < shakeUntil) { shakeX = rng.nextInt(shakeAmp * 2 + 1) - shakeAmp; shakeY = rng.nextInt(shakeAmp * 2 + 1) - shakeAmp; }
         g2.translate(shakeX, shakeY);
@@ -279,6 +346,21 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         hit.draw(g2);
         if (showSettings) drawSettingsOverlay(g2);
         g2.dispose();
+    }
+
+    private void drawCharacter(Graphics2D g2) {
+        BufferedImage frame = switch (currentAnim) {
+            case IDLE -> charPack.idle.current();
+            case WALK -> charPack.walk.current();
+            case ATTACK -> charPack.attack.current();
+            case TAKE_HIT -> charPack.hit.current();
+            case DEATH -> charPack.death.current();
+        };
+        int th = Math.min(240, getHeight() / 3);
+        int tw = (int) ((frame.getWidth() / (double) frame.getHeight()) * th);
+        int x = 40;
+        int y = getHeight() - th - 40;
+        g2.drawImage(frame, x, y, tw, th, null);
     }
 
     private void drawSettingsOverlay(Graphics2D g2) {
@@ -453,30 +535,24 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
     }
 
     private void drawWordInfo(Graphics2D g2, int cx, int cy) {
-        if (current == null)
-            return;
-
+        if (current == null) return;
         String title = current.display.toUpperCase(Locale.US);
         String sub1 = current.pronun;
         String sub2 = current.meaning;
-
         int boxW = Math.min(500, getWidth() - 40);
         int boxX = cx - boxW / 2;
         int boxH = 70;
         int boxY = cy - boxH / 2;
-
         g2.setColor(CLR_HUD_PANEL);
         g2.fillRoundRect(boxX, boxY, boxW, boxH, 15, 15);
-
         g2.setColor(Color.WHITE);
         g2.setFont(fontBold20);
         centerTextAt(g2, title, cx, cy - 15);
-
         g2.setColor(new Color(220, 220, 220));
         g2.setFont(fontPlain16);
         centerTextAt(g2, sub1 + " • " + sub2, cx, cy + 8);
     }
-    
+
     private void drawFooterInfo(Graphics2D g2) {
         if (state == GameConfig.State.READY) {
             drawSpacePrompt(g2, "กด ", " เพื่อเริ่มเกม");
@@ -608,6 +684,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
                 } catch (Exception ignored) { }
             }).start();
         }
+        if (state == GameConfig.State.PLAYING) setAnim(Anim.IDLE, 0);
     }
 
     private void resetRun() {
@@ -616,24 +693,25 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         nextWord();
         startMs = System.currentTimeMillis();
         state = GameConfig.State.PLAYING;
+        setAnim(Anim.IDLE, 0);
     }
 
     @Override
     public void keyPressed(KeyEvent e) {
         int code = e.getKeyCode();
-    
+
         if (code >= 0 && code < lastPressAt.length) {
             long now = System.currentTimeMillis();
             if (now - lastPressAt[code] < GameConfig.DEBOUNCE_MS) return;
             lastPressAt[code] = now;
         }
-    
+
         if (code == KeyEvent.VK_ESCAPE) {
             showSettings = !showSettings;
             repaint();
             return;
         }
-    
+
         if (state == GameConfig.State.READY) {
             if (code == KeyEvent.VK_SPACE) {
                 isSpaceHeld = true;
@@ -647,7 +725,7 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
             }
             return;
         }
-    
+
         if (state == GameConfig.State.GAMEOVER) {
             if (code == KeyEvent.VK_SPACE) {
                 isSpaceHeld = true;
@@ -661,14 +739,14 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
             }
             return;
         }
-    
+
         if (state != GameConfig.State.PLAYING) return;
-    
+
         if (code == KeyEvent.VK_SPACE) {
             isSpaceHeld = true;
             return;
         }
-    
+
         if (code == KeyEvent.VK_BACK_SPACE) {
             if (idx > 0) {
                 idx--;
@@ -676,14 +754,13 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
             }
             return;
         }
-    
+
         if (code >= KeyEvent.VK_A && code <= KeyEvent.VK_Z) {
             handleChar((char) ('A' + code - KeyEvent.VK_A));
         } else if (code >= KeyEvent.VK_0 && code <= KeyEvent.VK_9) {
             handleChar((char) ('0' + code - KeyEvent.VK_0));
         }
     }
-    
 
     @Override public void keyTyped(KeyEvent e) { }
 
@@ -699,7 +776,14 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
             idx++;
             correct++;
             popUntil = System.currentTimeMillis() + 90;
-            if (idx >= current.word.length()) { wordsCompleted++; checkBonus(); nextWord(); }
+            if (idx >= current.word.length()) {
+                wordsCompleted++;
+                setAnim(Anim.ATTACK, 0);
+                pendingNextWord = true;
+                checkBonus();
+            } else {
+                setAnim(Anim.IDLE, 0);
+            }
         } else {
             mistakes++;
             bonusStreak = 0;
@@ -709,10 +793,12 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
             shakeUntil = now + 220;
             shakeAmp = 2;
             health = Math.max(0, health - 1);
+            setAnim(Anim.TAKE_HIT, 350);
             if (health <= 0) {
                 state = GameConfig.State.GAMEOVER;
                 current = new WordEntry("OVER", "OVER", "โอเวอร์", "จบ");
                 idx = 0;
+                setAnim(Anim.DEATH, 0);
             }
         }
     }
@@ -739,12 +825,24 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
                 state = GameConfig.State.GAMEOVER;
                 current = new WordEntry("OVER", "OVER", "", "");
                 idx = 0;
+                setAnim(Anim.DEATH, 0);
             }
         }
         if (state == GameConfig.State.READY || state == GameConfig.State.GAMEOVER) {
             if (now - spaceAnimLast >= SPACE_ANIM_MS) { spaceAnimOn = !spaceAnimOn; spaceAnimLast = now; }
         } else {
             spaceAnimOn = false;
+        }
+        if (state == GameConfig.State.PLAYING) {
+            if (currentAnim == Anim.ATTACK) {
+                if (pendingNextWord && charPack.attack.finishedOnce()) {
+                    pendingNextWord = false;
+                    nextWord();
+                    setAnim(Anim.IDLE, 0);
+                }
+            } else if (animUntil > 0 && now > animUntil) {
+                setAnim(Anim.IDLE, 0);
+            }
         }
         if (showSettings && sliderKnob != null && draggingSlider) {
             int clamped = Math.max(sliderTrack.x, Math.min(sliderTrack.x + sliderTrack.width, sliderKnob.x + sliderKnob.width / 2));
@@ -755,4 +853,5 @@ public class GamePanel extends JPanel implements KeyListener, ActionListener {
         if (now - lastFpsTime >= 1000) { fps = frames; frames = 0; lastFpsTime = now; }
         repaint();
     }
+
 }
