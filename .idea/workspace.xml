@@ -5,13 +5,31 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8c7691ea-4ece-4811-841b-6a6a7a07c896" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/res/characters/Attack.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/res/characters/Death.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/res/characters/Idle.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/res/characters/Shield.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/res/characters/Take Hit.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/res/characters/Walk.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/res/characters/MedievalKing/Attack.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/res/characters/MedievalKing/Death.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/res/characters/MedievalKing/Idle.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/res/characters/MedievalKing/Take Hit.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/res/characters/Mushroom/Attack.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/res/characters/Mushroom/Death.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/res/characters/Mushroom/Idle.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/res/characters/Mushroom/Run.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/res/characters/Mushroom/Take Hit.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/res/characters/Wizard/Attack.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/res/characters/Wizard/Death.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/res/characters/Wizard/Hit.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/res/characters/Wizard/Idle.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/CharacterPack.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/Sprite.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/wav/classic_hurt.wav" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/wav/slash1.wav" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/wav/villager.wav" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/res/characters/Attack.png" beforeDir="false" afterPath="$PROJECT_DIR$/res/characters/Skeleton/Attack.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/res/characters/Death.png" beforeDir="false" afterPath="$PROJECT_DIR$/res/characters/Skeleton/Death.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/res/characters/Idle.png" beforeDir="false" afterPath="$PROJECT_DIR$/res/characters/Skeleton/Idle.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/res/characters/Shield.png" beforeDir="false" afterPath="$PROJECT_DIR$/res/characters/Skeleton/Shield.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/res/characters/Take Hit.png" beforeDir="false" afterPath="$PROJECT_DIR$/res/characters/Skeleton/Take Hit.png" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/res/characters/Walk.png" beforeDir="false" afterPath="$PROJECT_DIR$/res/characters/Skeleton/Walk.png" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/GamePanel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/GamePanel.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -37,30 +55,34 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Application.App.executor&quot;: &quot;Run&quot;,
-    &quot;Application.Run.executor&quot;: &quot;Run&quot;,
-    &quot;Application.SlowTTS.executor&quot;: &quot;Run&quot;,
-    &quot;Application.SystemTTS.executor&quot;: &quot;Run&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;E:/TypingGame-Java/lib&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Application.App.executor": "Run",
+    "Application.Run.executor": "Run",
+    "Application.SlowTTS.executor": "Run",
+    "Application.SystemTTS.executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "git-widget-placeholder": "main",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "/Users/k1god/Documents/TypingGame-Java-v/res/characters/Wizard"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/res/characters/Wizard" />
+      <recent name="$PROJECT_DIR$/wav" />
       <recent name="E:\TypingGame-Java\lib" />
       <recent name="E:\TypingGame-Java\wav" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
-      <recent name="$PROJECT_DIR$/res/characters" />
-      <recent name="E:\TypingGame-Java\lib" />
-      <recent name="E:\TypingGame-Java" />
+      <recent name="$PROJECT_DIR$/res/characters/Wizard" />
+      <recent name="$PROJECT_DIR$/res/characters/MedievalKing" />
+      <recent name="$PROJECT_DIR$/res/characters/MartialHero" />
+      <recent name="$PROJECT_DIR$/wav" />
+      <recent name="$PROJECT_DIR$/res/characters/Mushroom" />
     </key>
   </component>
   <component name="RunManager">
