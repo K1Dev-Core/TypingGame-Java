@@ -2,11 +2,14 @@ import java.util.Random;
 import java.util.List;
 
 public class GameState {
+
     public final Random rng = new Random();
     public final int CHAR_SCALE = 3;
     public final int ATTACK_HOLD_MS = 600;
     public final int TAKE_HIT_HOLD_MS = 700;
     public final int BONUS_TIME_MS = 3000;
+
+    public ComboEffect comboEffect = new ComboEffect();
 
     public KeyAtlas atlas;
     public SoundPool sStart;
@@ -27,28 +30,35 @@ public class GameState {
     public int playerBaseX;
     public int botBaseX;
 
+    public int panelWidth;
+    public int panelHeight;
+
     public GameConfig.State state = GameConfig.State.READY;
     public GameConfig.State previousState = GameConfig.State.READY;
 
     public WordEntry current = new WordEntry("HELLO", "HELLO", "เฮลโล", "สวัสดี");
-    public int idx = 0;
+    public int playerIdx = 0;
+    public int botIdx = 0;
     public int mistakes = 0;
-    public int correct = 0;
-    public int totalTyped = 0;
     public int wordsCompleted = 0;
+    public int botWordsCompleted = 0;
     public long startMs = 0;
-    public long wordStartMs = 0;
+    public long lastBotTypeMs = 0;
 
     public long flashUntil = 0;
     public long shakeUntil = 0;
     public int shakeAmp = 0;
     public long popUntil = 0;
-    public long bonusUntil = 0;
 
     public final long[] lastPressAt = new long[256];
 
-    public int health = GameConfig.MAX_HEALTH;
-    public int bonusStreak = 0;
+    public int playerHealth = GameConfig.MAX_HEALTH;
+    public int botHealth = GameConfig.MAX_HEALTH;
+
+    public int comboCount = 0;
+
+    public double botTypeSpeedMin = 1000;
+    public double botTypeSpeedMax = 2000;
 
     public boolean isSpaceHeld = false;
     public long spaceAnimLast = 0;
@@ -60,6 +70,9 @@ public class GameState {
     public int fps = 0;
 
     public boolean pendingNextWord = false;
+
+    public boolean pendingGameOver = false;
+    public String gameOverWinner = "";
 
     public boolean botSeq = false;
     public int botPhase = 0;
@@ -73,6 +86,15 @@ public class GameState {
     public long playerHitUntil = 0;
     public boolean botTakingHit = false;
     public long botHitUntil = 0;
+
+    public boolean showPlayerDamage = false;
+    public boolean showBotDamage = false;
+    public long playerDamageUntil = 0;
+    public long botDamageUntil = 0;
+    public int playerDamageX = 0;
+    public int playerDamageY = 0;
+    public int botDamageX = 0;
+    public int botDamageY = 0;
 
     private UISettings uiSettings;
 
@@ -110,7 +132,7 @@ public class GameState {
 
             bgMusic.play();
         } catch (Exception e) {
-            System.err.println("Failed to initialize background music: " + e.getMessage());
+            System.err.println("Failed : " + e.getMessage());
         }
     }
 
@@ -152,6 +174,8 @@ public class GameState {
     }
 
     public void updateGroundAndBases(int panelWidth, int panelHeight) {
+        this.panelWidth = panelWidth;
+        this.panelHeight = panelHeight;
         groundY = panelHeight - 60;
         computeBasePositions(panelWidth, panelHeight);
         try {
@@ -196,15 +220,16 @@ public class GameState {
         if (wordBank.isEmpty()) {
             current = new WordEntry("HELLO", "HELLO", "เฮลโล", "สวัสดี");
         } else {
-            WordEntry newWord;
-            do {
+            WordEntry newWord = wordBank.get(rng.nextInt(wordBank.size()));
+            while (current != null && newWord.word.equals(current.word) && wordBank.size() > 1) {
                 newWord = wordBank.get(rng.nextInt(wordBank.size()));
-            } while (wordBank.size() > 1 && newWord.word.equals(current.word));
+            }
             current = newWord;
         }
 
-        idx = 0;
-        wordStartMs = System.currentTimeMillis();
+        playerIdx = 0;
+        botIdx = 0;
+        lastBotTypeMs = System.currentTimeMillis();
 
         if (uiSettings != null) {
             uiSettings.speakCurrentWord(current);
@@ -212,14 +237,25 @@ public class GameState {
     }
 
     public void resetRun(AnimationController animController) {
-        mistakes = correct = totalTyped = wordsCompleted = bonusStreak = 0;
-        health = GameConfig.MAX_HEALTH;
+        wordsCompleted = 0;
+        botWordsCompleted = 0;
+        comboCount = 0;
+        playerHealth = GameConfig.MAX_HEALTH;
+        botHealth = GameConfig.MAX_HEALTH;
+        playerIdx = 0;
+        botIdx = 0;
+        lastBotTypeMs = 0;
         pendingNextWord = false;
+        pendingGameOver = false;
+        gameOverWinner = "";
         botSeq = false;
         playerSeq = false;
         playerTakingHit = false;
         botTakingHit = false;
         playerHitUntil = botHitUntil = 0;
+        showPlayerDamage = false;
+        showBotDamage = false;
+        playerDamageUntil = botDamageUntil = 0;
 
         if (animController != null) {
             player.x = playerBaseX;
@@ -233,20 +269,6 @@ public class GameState {
         nextWord();
         startMs = System.currentTimeMillis();
         state = GameConfig.State.PLAYING;
-    }
-
-    public void checkBonus() {
-        long elapsed = System.currentTimeMillis() - wordStartMs;
-        if (elapsed <= BONUS_TIME_MS) {
-            bonusStreak++;
-            bonusUntil = System.currentTimeMillis() + 1500;
-            if (bonusStreak % 3 == 0) {
-                health = Math.min(GameConfig.MAX_HEALTH, health + 1);
-                popUntil = System.currentTimeMillis() + 200;
-            }
-        } else {
-            bonusStreak = 0;
-        }
     }
 
     public void startBotAttackSequence() {
@@ -278,6 +300,11 @@ public class GameState {
             animController.playIfAudible(sHit);
             playerTakingHit = true;
             playerHitUntil = now + TAKE_HIT_HOLD_MS;
+            showPlayerDamage = true;
+            playerDamageUntil = now + 1000;
+            playerDamageX = 100;
+            playerDamageY = 250;
+            comboCount = 0;
             botPhaseUntil = now + ATTACK_HOLD_MS;
             botPhase = 1;
         } else if (botPhase == 1) {
@@ -286,6 +313,15 @@ public class GameState {
                 bot.y = groundY;
                 animController.setAnim(bot, CharacterPack.Anim.IDLE);
                 botSeq = false;
+
+                if (pendingGameOver && gameOverWinner.equals("OVER")) {
+                    state = GameConfig.State.GAMEOVER;
+                    current = new WordEntry("OVER", "OVER", "โอเวอร์", "จบ");
+                    animController.setAnim(player, CharacterPack.Anim.DEATH);
+                    animController.playIfAudible(sDeath);
+                    ScoreManager.getInstance().saveScore(wordsCompleted);
+                    pendingGameOver = false;
+                }
             }
         }
     }
@@ -301,6 +337,10 @@ public class GameState {
             animController.playIfAudible(sHit);
             botTakingHit = true;
             botHitUntil = now + TAKE_HIT_HOLD_MS;
+            showBotDamage = true;
+            botDamageUntil = now + 1000;
+            botDamageX = panelWidth - 100;
+            botDamageY = 250;
             playerPhaseUntil = now + ATTACK_HOLD_MS;
             playerPhase = 1;
         } else if (playerPhase == 1) {
@@ -311,7 +351,19 @@ public class GameState {
                 playerSeq = false;
                 if (pendingNextWord) {
                     pendingNextWord = false;
-                    nextWord();
+                }
+                if (pendingGameOver) {
+                    state = GameConfig.State.GAMEOVER;
+                    if (gameOverWinner.equals("WIN")) {
+                        current = new WordEntry("WIN", "WIN", "ชนะ", "ชัยชนะ");
+                        animController.setAnim(bot, CharacterPack.Anim.DEATH);
+                    } else {
+                        current = new WordEntry("OVER", "OVER", "โอเวอร์", "จบ");
+                        animController.setAnim(player, CharacterPack.Anim.DEATH);
+                    }
+                    animController.playIfAudible(sDeath);
+                    ScoreManager.getInstance().saveScore(wordsCompleted);
+                    pendingGameOver = false;
                 } else {
                     nextWord();
                 }
@@ -320,46 +372,38 @@ public class GameState {
     }
 
     public void handleChar(char c, AnimationController animController) {
-        totalTyped++;
-        if (idx < current.word.length() && c == current.word.charAt(idx)) {
+        if (playerIdx < current.word.length() && c == current.word.charAt(playerIdx)) {
             animController.playIfAudible(sType);
-            idx++;
-            correct++;
+            playerIdx++;
             popUntil = System.currentTimeMillis() + 90;
-            if (idx >= current.word.length()) {
+
+            if (playerIdx >= current.word.length()) {
+                comboCount++;
+                if (comboCount > 2) {
+                    int cx = panelWidth / 2;
+                    int cy = panelHeight / 2 + 150;
+                    comboEffect.triggerCombo(comboCount, 1, cx, cy);
+                }
+
                 wordsCompleted++;
+                botHealth = Math.max(0, botHealth - 1);
                 startPlayerAttackSequence();
-                checkBonus();
+
+                if (botHealth <= 0) {
+                    pendingGameOver = true;
+                    gameOverWinner = "WIN";
+                }
             }
         } else {
-            mistakes++;
-            bonusStreak = 0;
             animController.playIfAudible(sErr);
-            long now = System.currentTimeMillis();
-            flashUntil = now + 120;
-            shakeUntil = now + 220;
-            shakeAmp = 2;
-            health = Math.max(0, health - 1);
-            startBotAttackSequence();
-            if (health <= 0) {
-                state = GameConfig.State.GAMEOVER;
-                current = new WordEntry("OVER", "OVER", "โอเวอร์", "จบ");
-                idx = 0;
-                animController.setAnim(player, CharacterPack.Anim.DEATH);
-                animController.playIfAudible(sDeath);
-                animController.setAnim(bot, CharacterPack.Anim.IDLE);
-
-                // Save the score when game ends
-                ScoreManager.getInstance().saveScore(wordsCompleted);
-            }
         }
     }
 
     public void update(long now, AnimationController animController) {
         if (state == GameConfig.State.PLAYING) {
-            // Time limit removed - game continues until player loses all health
+            comboEffect.update();
+            updateBotTyping(now, animController);
         }
-
         if (state == GameConfig.State.READY || state == GameConfig.State.GAMEOVER) {
             if (now - spaceAnimLast >= SPACE_ANIM_MS) {
                 spaceAnimOn = !spaceAnimOn;
@@ -373,6 +417,29 @@ public class GameState {
             updateBotSequence(now, animController);
             updatePlayerSequence(now, animController);
         }
+    }
+
+    private void updateBotTyping(long now, AnimationController animController) {
+        if (now - lastBotTypeMs > botTypeSpeedMin + rng.nextDouble() * (botTypeSpeedMax - botTypeSpeedMin)) {
+            if (botIdx < current.word.length()) {
+                botIdx++;
+
+                if (botIdx >= current.word.length()) {
+                    botWordsCompleted++;
+                    playerHealth = Math.max(0, playerHealth - 1);
+                    comboCount = 0;
+                    startBotAttackSequence();
+
+                    if (playerHealth <= 0) {
+                        pendingGameOver = true;
+                        gameOverWinner = "OVER";
+                    } else {
+                        nextWord();
+                    }
+                }
+            }
+            lastBotTypeMs = now;
+        }
 
         if (playerTakingHit && now >= playerHitUntil) {
             animController.setAnim(player, CharacterPack.Anim.IDLE);
@@ -382,6 +449,14 @@ public class GameState {
         if (botTakingHit && now >= botHitUntil) {
             animController.setAnim(bot, CharacterPack.Anim.IDLE);
             botTakingHit = false;
+        }
+
+        if (showPlayerDamage && now >= playerDamageUntil) {
+            showPlayerDamage = false;
+        }
+
+        if (showBotDamage && now >= botDamageUntil) {
+            showBotDamage = false;
         }
 
         frames++;

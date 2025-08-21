@@ -48,19 +48,16 @@ public class InputHandler implements KeyListener {
                 if (!uiSettings.showSettings)
                     return;
 
-                // Toggle TTS on/off
                 if (uiSettings.toggleRect != null && uiSettings.toggleRect.contains(e.getPoint())) {
                     uiSettings.ttsEnabled = !uiSettings.ttsEnabled;
                     gamePanel.repaint();
                 }
 
-                // Toggle TTS repeat on/off
                 if (uiSettings.ttsRepeatToggleRect != null && uiSettings.ttsRepeatToggleRect.contains(e.getPoint())) {
                     uiSettings.ttsRepeatEnabled = !uiSettings.ttsRepeatEnabled;
                     gamePanel.repaint();
                 }
 
-                // Set TTS speed
                 if (uiSettings.speedRectSlow != null && uiSettings.speedRectSlow.contains(e.getPoint())) {
                     uiSettings.setTtsSpeedLevel(0);
                 } else if (uiSettings.speedRectNormal != null && uiSettings.speedRectNormal.contains(e.getPoint())) {
@@ -69,13 +66,11 @@ public class InputHandler implements KeyListener {
                     uiSettings.setTtsSpeedLevel(2);
                 }
 
-                // Check if user is clicking on a volume slider knob
                 checkSliderKnob(e, uiSettings.masterSliderKnob, "master");
                 checkSliderKnob(e, uiSettings.ttsSliderKnob, "tts");
                 checkSliderKnob(e, uiSettings.sfxSliderKnob, "sfx");
                 checkSliderKnob(e, uiSettings.musicSliderKnob, "music");
 
-                // Check if user is clicking on a volume slider track
                 checkSliderTrack(e, uiSettings.masterSliderTrack, "master");
                 checkSliderTrack(e, uiSettings.ttsSliderTrack, "tts");
                 checkSliderTrack(e, uiSettings.sfxSliderTrack, "sfx");
@@ -204,8 +199,8 @@ public class InputHandler implements KeyListener {
         }
 
         if (code == KeyEvent.VK_BACK_SPACE) {
-            if (gameState.idx > 0) {
-                gameState.idx--;
+            if (gameState.playerIdx > 0) {
+                gameState.playerIdx--;
                 animController.playIfAudible(gameState.sStart);
             }
             return;

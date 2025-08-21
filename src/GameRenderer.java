@@ -4,25 +4,17 @@ import java.util.Locale;
 
 public class GameRenderer {
     private final GamePanel gamePanel;
+
     private final GameState gameState;
     private final UISettings uiSettings;
 
     private static final Color CLR_FLASH = new Color(180, 30, 40, 80);
-    private static final Color CLR_BONUS_TINT = new Color(255, 215, 0, 60);
-    private static final Color CLR_PANEL_BG = new Color(18, 20, 24);
     private static final Color CLR_BOX_SHADOW = new Color(0, 0, 0, 70);
     private static final Color CLR_HUD_PANEL = new Color(0, 0, 0, 120);
     private static final Color CLR_HUD_TEXT = Color.WHITE;
     private static final Color CLR_WPM = new Color(100, 200, 255);
-    private static final Color CLR_ACC = new Color(150, 255, 150);
     private static final Color CLR_DONE = new Color(255, 150, 255);
-    private static final Color CLR_BONUS = new Color(255, 100, 100);
     private static final Color CLR_TIME = new Color(255, 215, 0);
-    private static final Color CLR_BAR_BG_OUTLINE = new Color(255, 255, 255, 100);
-    private static final Color CLR_BAR_BG = new Color(60, 60, 60);
-    private static final Color CLR_BAR_FRAME = new Color(0, 0, 0, 120);
-    private static final Color CLR_PROG_BG = new Color(40, 40, 40);
-    private static final Color CLR_PROG_LABEL = new Color(200, 200, 200);
 
     public GameRenderer(GamePanel gamePanel, GameState gameState, UISettings uiSettings) {
         this.gamePanel = gamePanel;
@@ -36,11 +28,6 @@ public class GameRenderer {
         long now = System.currentTimeMillis();
         if (now < gameState.flashUntil) {
             g2.setColor(CLR_FLASH);
-            g2.fillRect(0, 0, gamePanel.getWidth(), gamePanel.getHeight());
-        }
-
-        if (now < gameState.bonusUntil) {
-            g2.setColor(CLR_BONUS_TINT);
             g2.fillRect(0, 0, gamePanel.getWidth(), gamePanel.getHeight());
         }
 
@@ -70,8 +57,10 @@ public class GameRenderer {
         if (gameState.state != GameConfig.State.PLAYING) {
             drawScoreInfo(g2);
         }
-        if (gameState.state == GameConfig.State.PLAYING)
-            drawBars(g2);
+        if (gameState.state == GameConfig.State.PLAYING) {
+            drawComboEffect(g2);
+            drawDamageText(g2, now);
+        }
         gameState.hit.draw(g2);
 
         if (uiSettings.showSettings)
@@ -89,15 +78,12 @@ public class GameRenderer {
         double minutes = gameState.state == GameConfig.State.PLAYING
                 ? Math.max(1e-6, elapsed / 60000.0)
                 : 0;
-        double wpm = minutes > 0 ? (gameState.correct / 5.0) / minutes : 0.0;
-        double acc = gameState.totalTyped == 0
-                ? 100.0
-                : 100.0 * (gameState.totalTyped - gameState.mistakes) / gameState.totalTyped;
+        double wpm = minutes > 0 ? (gameState.wordsCompleted * 5.0) / minutes : 0.0;
+        double acc = 100.0;
 
         if (gameState.state == GameConfig.State.PLAYING) {
             drawGameHUD(g2, mm, ss, wpm, acc);
-            drawHealthBar(g2);
-            drawBonusTimer(g2, now);
+            drawHealthBars(g2);
         }
 
         g2.setFont(uiSettings.fontSmall12);
@@ -113,75 +99,79 @@ public class GameRenderer {
         g2.drawString(String.format("เวลา: %02d:%02d", mm, ss), 28, 42);
         g2.setColor(CLR_WPM);
         g2.drawString(String.format(Locale.US, "WPM: %.1f", wpm), 28, 70);
-        g2.setColor(CLR_ACC);
-        g2.drawString(String.format(Locale.US, "ความแม่นยำ: %.0f%%", acc), 28, 95);
         g2.setColor(CLR_DONE);
-        g2.drawString(String.format("คำที่ทำได้: %d", gameState.wordsCompleted), 28, 120);
-        if (gameState.bonusStreak > 0) {
-            g2.setColor(CLR_BONUS);
-            g2.drawString(String.format("โบนัส: x%d", gameState.bonusStreak), 28, 148);
-        }
+        g2.drawString(String.format("คำที่พิมพ์ได้: %d", gameState.wordsCompleted), 28, 95);
     }
 
-    private void drawHealthBar(Graphics2D g2) {
-        int barX = gamePanel.getWidth() - 220;
-        int barY = 20;
-        int barW = 180;
-        int barH = 20;
+    private void drawHealthBars(Graphics2D g2) {
+        int barW = 120;
+        int barH = 14;
 
+        int playerX = 50;
+        int playerY = 160;
+        drawSingleHealthBar(g2, playerX, playerY, barW, barH,
+                gameState.playerHealth / (double) GameConfig.MAX_HEALTH,
+                "Player");
+
+        int botX = gamePanel.getWidth() - barW - 50;
+        int botY = 160;
+        drawSingleHealthBar(g2, botX, botY, barW, barH,
+                gameState.botHealth / (double) GameConfig.MAX_HEALTH,
+                "Bot");
+    }
+
+    private void drawSingleHealthBar(Graphics2D g2, int barX, int barY, int barW, int barH,
+            double healthPercent, String healthText) {
         g2.setColor(CLR_HUD_PANEL);
-        g2.fillRoundRect(barX - 4, barY - 4, barW + 8, barH + 8, 12, 12);
-        g2.setColor(new Color(60, 60, 60));
+        g2.fillRoundRect(barX - 6, barY - 6, barW + 12, barH + 20, 12, 12);
+
+        g2.setColor(new Color(40, 40, 40));
         g2.fillRoundRect(barX, barY, barW, barH, 8, 8);
 
-        double healthPercent = gameState.health / (double) GameConfig.MAX_HEALTH;
         int healthW = (int) (barW * healthPercent);
 
-        Color healthColor = healthPercent > 0.6
-                ? new Color(100, 200, 100)
+        Color healthColor1 = healthPercent > 0.6
+                ? new Color(100, 255, 100)
                 : healthPercent > 0.3
-                        ? new Color(255, 200, 100)
+                        ? new Color(255, 220, 100)
                         : new Color(255, 100, 100);
+        Color healthColor2 = healthPercent > 0.6
+                ? new Color(70, 200, 70)
+                : healthPercent > 0.3
+                        ? new Color(255, 180, 70)
+                        : new Color(200, 70, 70);
 
-        g2.setColor(healthColor);
-        g2.fillRoundRect(barX, barY, healthW, barH, 8, 8);
-        g2.setColor(CLR_BAR_BG_OUTLINE);
+        if (healthW > 0) {
+            Paint oldPaint = g2.getPaint();
+            g2.setPaint(new GradientPaint(barX, barY, healthColor1, barX, barY + barH, healthColor2));
+            g2.fillRoundRect(barX, barY, healthW, barH, 8, 8);
+
+            g2.setPaint(new GradientPaint(barX, barY, new Color(255, 255, 255, 80),
+                    barX, barY + barH / 2, new Color(255, 255, 255, 0)));
+            g2.fillRoundRect(barX, barY, healthW, barH / 2, 8, 8);
+            g2.setPaint(oldPaint);
+        }
+
+        g2.setStroke(new BasicStroke(2f));
+        g2.setColor(new Color(255, 255, 255, 100));
         g2.drawRoundRect(barX, barY, barW, barH, 8, 8);
+        g2.setStroke(new BasicStroke(1f));
 
-        g2.setFont(uiSettings.fontSmall12);
-        g2.setColor(CLR_HUD_TEXT);
-        String healthText = String.format("HP %d/%d", gameState.health, GameConfig.MAX_HEALTH);
-        FontMetrics fm = g2.getFontMetrics();
-        int textX = barX + (barW - fm.stringWidth(healthText)) / 2;
-        g2.drawString(healthText, textX, barY + 16);
-    }
+        if (healthText != null) {
+            g2.setFont(uiSettings.fontSmall12);
+            g2.setColor(CLR_HUD_TEXT);
+            FontMetrics fm = g2.getFontMetrics();
+            int textX = barX + (barW - fm.stringWidth(healthText)) / 2;
+            g2.drawString(healthText, textX, barY - 8);
 
-    private void drawBonusTimer(Graphics2D g2, long now) {
-        if (gameState.state != GameConfig.State.PLAYING || gameState.wordStartMs == 0)
-            return;
-
-        long elapsed = now - gameState.wordStartMs;
-        if (elapsed >= gameState.BONUS_TIME_MS)
-            return;
-
-        double timeLeft = (gameState.BONUS_TIME_MS - elapsed) / (double) gameState.BONUS_TIME_MS;
-        int timerX = gamePanel.getWidth() - 220;
-        int timerY = 65;
-        int timerW = 180;
-        int timerH = 10;
-
-        g2.setColor(CLR_HUD_PANEL);
-        g2.fillRoundRect(timerX - 2, timerY - 2, timerW + 4, timerH + 4, 8, 8);
-        g2.setColor(CLR_PROG_BG);
-        g2.fillRoundRect(timerX, timerY, timerW, timerH, 6, 6);
-
-        int bonusW = (int) (timerW * timeLeft);
-        g2.setColor(CLR_TIME);
-        g2.fillRoundRect(timerX, timerY, bonusW, timerH, 6, 6);
-
-        g2.setFont(uiSettings.fontSmall11);
-        g2.setColor(CLR_TIME);
-        g2.drawString("BONUS TIME", timerX, timerY - 4);
+            String healthValue = String.format("%d/%d", (int) (healthPercent * GameConfig.MAX_HEALTH),
+                    GameConfig.MAX_HEALTH);
+            g2.setFont(uiSettings.fontSmall11);
+            FontMetrics healthFm = g2.getFontMetrics();
+            int valueX = barX + (barW - healthFm.stringWidth(healthValue)) / 2;
+            g2.setColor(Color.WHITE);
+            g2.drawString(healthValue, valueX, barY + barH / 2 + 3);
+        }
     }
 
     private void drawWord(Graphics2D g2, long now) {
@@ -212,12 +202,12 @@ public class GameRenderer {
             gg.fillRoundRect(x - 6, y - 6, keyW + 12, keyH + 12, 18, 18);
             drawWordInfo(g2, cx, cy - 80);
 
-            BufferedImage img = (i < gameState.idx)
+            BufferedImage img = (i < gameState.playerIdx)
                     ? gameState.atlas.getPressed(ch)
                     : gameState.atlas.getNormal(ch);
             gg.drawImage(img, x, y, keyW, keyH, null);
 
-            if (i == gameState.idx && gameState.state == GameConfig.State.PLAYING) {
+            if (i == gameState.playerIdx && gameState.state == GameConfig.State.PLAYING) {
                 Stroke old = gg.getStroke();
                 gg.setStroke(new BasicStroke(3f));
                 gg.setColor(new Color(255, 215, 0, 210));
@@ -269,21 +259,30 @@ public class GameRenderer {
         int highScore = scoreManager.getHighScore();
         int lastScore = scoreManager.getLastScore();
 
-        int panelWidth = 200;
-        int panelHeight = 60;
+        int panelWidth = 220;
+        int panelHeight = 90;
         int panelX = gamePanel.getWidth() - panelWidth - 10;
         int panelY = 20;
 
         g2.setColor(CLR_HUD_PANEL);
         g2.fillRoundRect(panelX, panelY, panelWidth, panelHeight, 12, 12);
+        g2.setColor(new Color(255, 255, 255, 40));
+        g2.drawRoundRect(panelX, panelY, panelWidth, panelHeight, 12, 12);
+
+        g2.setColor(Color.WHITE);
+        g2.setFont(uiSettings.fontBold16);
+        centerTextAt(g2, "สถิติการเล่น", panelX + panelWidth / 2, panelY + 25);
+
+        g2.setColor(new Color(255, 255, 255, 60));
+        g2.drawLine(panelX + 20, panelY + 35, panelX + panelWidth - 20, panelY + 35);
 
         g2.setColor(new Color(255, 215, 0));
         g2.setFont(uiSettings.fontBold16);
-        g2.drawString("มากสุด: " + highScore, panelX + 10, panelY + 25);
+        g2.drawString("คะแนนสูงสุด: " + highScore, panelX + 15, panelY + 55);
 
         g2.setColor(new Color(200, 200, 200));
         g2.setFont(uiSettings.fontPlain16);
-        g2.drawString("ล่าสุด: " + lastScore, panelX + 10, panelY + 50);
+        g2.drawString("คะแนนล่าสุด: " + lastScore, panelX + 15, panelY + 80);
     }
 
     private void drawSpacePrompt(Graphics2D g2, String pre, String post) {
@@ -379,46 +378,6 @@ public class GameRenderer {
         }
 
         g2.drawString(post, curX, y);
-    }
-
-    private void drawBars(Graphics2D g2) {
-        int barW = Math.min((int) (gamePanel.getWidth() * 0.45), 400);
-        int x = (gamePanel.getWidth() - barW) / 2;
-        int topY = gamePanel.getHeight() - 100;
-        int h = 12;
-
-        double p = gameState.current != null && gameState.current.word.length() > 0
-                ? (gameState.idx / (double) gameState.current.word.length())
-                : 0;
-
-        drawProgressBar(g2, x, topY, barW, h, p, "ความคืบหน้าคำ", new Color(70, 170, 110), new Color(50, 120, 80));
-    }
-
-    private void drawProgressBar(Graphics2D g2, int x, int y, int w, int h, double progress, String label, Color color1,
-            Color color2) {
-        g2.setColor(CLR_BAR_FRAME);
-        g2.fillRoundRect(x - 2, y - 2, w + 4, h + 4, 16, 16);
-        g2.setColor(CLR_PROG_BG);
-        g2.fillRoundRect(x, y, w, h, 12, 12);
-
-        if (progress > 0) {
-            Paint old = g2.getPaint();
-            g2.setPaint(new GradientPaint(x, y, color1, x + w, y + h, color2));
-            g2.fillRoundRect(x, y, (int) (w * progress), h, 12, 12);
-            g2.setPaint(
-                    new GradientPaint(x, y, new Color(255, 255, 255, 60), x, y + h / 2, new Color(255, 255, 255, 20)));
-            g2.fillRoundRect(x, y, (int) (w * progress), h / 2, 12, 12);
-            g2.setPaint(old);
-        }
-
-        g2.setColor(new Color(255, 255, 255, 80));
-        g2.drawRoundRect(x, y, w, h, 12, 12);
-
-        g2.setFont(uiSettings.fontSmall12);
-        g2.setColor(CLR_PROG_LABEL);
-        FontMetrics fm = g2.getFontMetrics();
-        int labelX = x + (w - fm.stringWidth(label)) / 2;
-        g2.drawString(label, labelX, y - 6);
     }
 
     public void drawSettingsOverlay(Graphics2D g2) {
@@ -581,5 +540,33 @@ public class GameRenderer {
         FontMetrics fm = g2.getFontMetrics();
         int cx = x - fm.stringWidth(s) / 2;
         g2.drawString(s, cx, y);
+    }
+
+    private void drawComboEffect(Graphics2D g2) {
+        if (gameState.comboEffect != null && gameState.comboEffect.isActive()) {
+            gameState.comboEffect.render(g2, uiSettings.fontBold20, uiSettings.fontPlain16);
+        }
+    }
+
+    private void drawDamageText(Graphics2D g2, long now) {
+        if (gameState.showPlayerDamage) {
+            long elapsed = now - (gameState.playerDamageUntil - 1000);
+            float alpha = Math.max(0f, 1f - (elapsed / 1000f));
+            int yOffset = (int) (elapsed * 0.05f);
+
+            g2.setColor(new Color(255, 80, 80, (int) (255 * alpha)));
+            g2.setFont(uiSettings.fontBold20);
+            g2.drawString("-1", gameState.playerDamageX, gameState.playerDamageY - yOffset);
+        }
+
+        if (gameState.showBotDamage) {
+            long elapsed = now - (gameState.botDamageUntil - 1000);
+            float alpha = Math.max(0f, 1f - (elapsed / 1000f));
+            int yOffset = (int) (elapsed * 0.05f);
+
+            g2.setColor(new Color(255, 80, 80, (int) (255 * alpha)));
+            g2.setFont(uiSettings.fontBold20);
+            g2.drawString("-1", gameState.botDamageX, gameState.botDamageY - yOffset);
+        }
     }
 }

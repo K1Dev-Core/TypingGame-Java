@@ -6,18 +6,26 @@ import javax.imageio.ImageIO;
 public class SplashScreen {
     private static final int FADE_DURATION = 2000;
     private static final int DISPLAY_DURATION = 3000;
+    private static final int TYPING_PAUSE = 2000;
+    private static final String TYPING_TEXT = "Presented By C++ TEAM";
+    private static final int CHAR_DELAY = 120;
 
     private int screenWidth;
     private int screenHeight;
     private BufferedImage logo;
     private long startTime;
     private boolean isDone = false;
+    private SoundPool typingSound;
+    private Font titleFont;
 
-    // enum ตัวแปรประเภทไว้เก็บเช้ต
+    private int typedCharacters = 0;
+    private long lastCharTime = 0;
+
     public enum State {
         FADE_IN,
         DISPLAY,
         FADE_OUT,
+        TYPING,
         DONE
     }
 
@@ -27,6 +35,10 @@ public class SplashScreen {
         this.screenWidth = width;
         this.screenHeight = height;
         startTime = System.currentTimeMillis();
+
+        typingSound = new SoundPool(GameConfig.CLICK_WAV_PATH, 5);
+
+        titleFont = new Font("SansSerif", Font.BOLD, 34);
 
         try {
             logo = ImageIO.read(new File("./res/logo/logo.png"));
@@ -79,6 +91,24 @@ public class SplashScreen {
 
             case FADE_OUT:
                 if (elapsedTime > FADE_DURATION) {
+                    currentState = State.TYPING;
+                    startTime = currentTime;
+                    typedCharacters = 0;
+                    lastCharTime = currentTime;
+                }
+                break;
+
+            case TYPING:
+                if (currentTime - lastCharTime >= CHAR_DELAY && typedCharacters < TYPING_TEXT.length()) {
+                    typedCharacters++;
+                    lastCharTime = currentTime;
+                    if (typingSound != null) {
+                        typingSound.play();
+                    }
+                }
+
+                if (typedCharacters >= TYPING_TEXT.length()
+                        && elapsedTime > (TYPING_TEXT.length() * CHAR_DELAY) + TYPING_PAUSE) {
                     currentState = State.DONE;
                     isDone = true;
                 }
@@ -99,14 +129,33 @@ public class SplashScreen {
         float alpha = 1.0f;
         long elapsedTime = System.currentTimeMillis() - startTime;
 
+        g2.setColor(new Color(0, 0, 0, 255));
+        g2.fillRect(0, 0, screenWidth, screenHeight);
+
+        if (currentState == State.TYPING) {
+            g2.setFont(titleFont);
+            g2.setColor(Color.WHITE);
+            FontMetrics fm = g2.getFontMetrics();
+
+            String displayText = TYPING_TEXT.substring(0, typedCharacters);
+            int textWidth = fm.stringWidth(displayText);
+            int textX = (screenWidth - textWidth) / 2;
+            int textY = screenHeight / 2 + fm.getAscent() / 2;
+
+            g2.drawString(displayText, textX, textY);
+
+            if ((System.currentTimeMillis() / 500) % 2 == 0 && typedCharacters < TYPING_TEXT.length()) {
+                int cursorX = textX + textWidth + 2;
+                g2.drawString("|", cursorX, textY);
+            }
+            return;
+        }
+
         if (currentState == State.FADE_IN) {
             alpha = Math.min(1.0f, (float) elapsedTime / FADE_DURATION);
         } else if (currentState == State.FADE_OUT) {
             alpha = Math.max(0.0f, 1.0f - ((float) elapsedTime / FADE_DURATION));
         }
-
-        g2.setColor(new Color(0, 0, 0, 255));
-        g2.fillRect(0, 0, screenWidth, screenHeight);
 
         Composite oldComposite = g2.getComposite();
         g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));

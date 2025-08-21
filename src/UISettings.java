@@ -26,8 +26,7 @@ public class UISettings {
     public boolean draggingSlider = false;
     public String draggingSliderType = null;
 
-    // Character selection is now handled by CharacterConfig
-    public int selectedCharIdx = 0; // Index in the array of player characters
+    public int selectedCharIdx = 0;
 
     public Rectangle prevCharRect, nextCharRect, applyCharRect, previewBoxRect;
     public CharacterPack previewPack = null;
