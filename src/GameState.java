@@ -119,7 +119,7 @@ public class GameState {
     }
 
     private void initHitEffect() {
-        hit = new HitEffect("./effect/hit-sprite-sheet.png");
+        hit = new HitEffect("./res/effect/hit-sprite-sheet.png");
     }
 
     public void initAtlas() {
