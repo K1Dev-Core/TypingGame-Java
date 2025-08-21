@@ -17,14 +17,13 @@ public class HitEffect {
     public HitEffect(String spritePath) {
         try {
             spriteSheet = ImageIO.read(new File(spritePath));
-            int fw = 32, fh = 32; // ขนาดเฟรมจาก JSON
+            int fw = 32, fh = 32;
             for (int i = 0; i < 8; i++) {
                 frames.add(new Rectangle(i * fw, 0, fw, fh));
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
-
 
         new Timer(25, e -> {
             if (playing) {

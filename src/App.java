@@ -7,7 +7,7 @@ public class App {
             JFrame f = new JFrame("Typing • Words");
             f.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
 
-            GamePanel gp = new GamePanel();
+            GamePanel gp = new GamePanel(true);
             f.add(gp);
             f.pack();
             f.setLocationRelativeTo(null);
