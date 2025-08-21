@@ -4,7 +4,8 @@ import java.awt.*;
 import javax.imageio.ImageIO;
 
 public class UISettings {
-    public Font fontSmall12, fontSmall11, fontBold16, fontBold20, fontPlain16, fontPlain6, fontTitle48;
+    public Font fontSmall12, fontSmall11, fontBold16, fontBold20, fontBold24, fontBold72, fontPlain16, fontPlain6,
+            fontTitle48;
 
     public boolean showSettings = false;
     public boolean ttsEnabled = true;
@@ -33,6 +34,8 @@ public class UISettings {
 
     public BufferedImage spaceSheet, spaceFrameNormal, spaceFramePressed;
     public BufferedImage backspaceSheet, backspaceFrameNormal, backspaceFramePressed;
+    public BufferedImage enterSheet, enterFrameNormal, enterFramePressed;
+    public BufferedImage tabSheet, tabFrameNormal, tabFramePressed;
     public BufferedImage arrowLeftSheet, arrowLeftNormal, arrowLeftPressed;
     public BufferedImage arrowRightSheet, arrowRightNormal, arrowRightPressed;
     public BufferedImage arrowLeftFrame;
@@ -53,6 +56,8 @@ public class UISettings {
             fontPlain6 = mcFont.deriveFont(Font.PLAIN, 6f);
             fontBold16 = mcFont.deriveFont(Font.BOLD, 16f);
             fontBold20 = mcFont.deriveFont(Font.BOLD, 20f);
+            fontBold24 = mcFont.deriveFont(Font.BOLD, 24f);
+            fontBold72 = mcFont.deriveFont(Font.BOLD, 72f);
             fontPlain16 = mcFont.deriveFont(Font.PLAIN, 16f);
             fontTitle48 = mcFont.deriveFont(Font.BOLD, 48f);
         } catch (Exception ignored) {
@@ -78,6 +83,25 @@ public class UISettings {
                 int fh = backspaceSheet.getHeight();
                 backspaceFrameNormal = backspaceSheet.getSubimage(0, 0, fw, fh);
                 backspaceFramePressed = backspaceSheet.getSubimage(fw, 0, fw, fh);
+            }
+        } catch (Exception ignored) {
+        }
+
+        try {
+            enterSheet = ImageIO.read(new File("./res/keys/ENTER.png"));
+            tabSheet = ImageIO.read(new File("./res/keys/TAB.png"));
+            if (enterSheet != null) {
+                int fw = enterSheet.getWidth() / 2;
+                int fh = enterSheet.getHeight();
+                enterFrameNormal = enterSheet.getSubimage(0, 0, fw, fh);
+                enterFramePressed = enterSheet.getSubimage(fw, 0, fw, fh);
+            }
+
+            if (tabSheet != null) {
+                int fw = tabSheet.getWidth() / 2;
+                int fh = tabSheet.getHeight();
+                tabFrameNormal = tabSheet.getSubimage(0, 0, fw, fh);
+                tabFramePressed = tabSheet.getSubimage(fw, 0, fw, fh);
             }
         } catch (Exception ignored) {
         }

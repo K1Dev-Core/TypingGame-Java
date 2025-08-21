@@ -10,12 +10,18 @@ import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import javax.imageio.ImageIO;
 import java.io.File;
+import client.NetworkClient;
+import shared.Player;
+import shared.NetworkMessage;
 
-public class InputHandler implements KeyListener {
+public class InputHandler implements KeyListener, MouseListener {
     private final GamePanel gamePanel;
     private final GameState gameState;
     private final UISettings uiSettings;
     private final AnimationController animController;
+
+    private NetworkClient networkClient;
+    private Player localPlayer;
 
     public InputHandler(GamePanel gamePanel, GameState gameState, UISettings uiSettings,
             AnimationController animController) {
@@ -29,11 +35,20 @@ public class InputHandler implements KeyListener {
         initCursor();
     }
 
+    public void setNetworkClient(NetworkClient client) {
+        this.networkClient = client;
+    }
+
+    public void setLocalPlayer(Player player) {
+        this.localPlayer = player;
+    }
+
     private void initKeyListeners() {
         gamePanel.addKeyListener(this);
     }
 
     private void initMouseListeners() {
+        gamePanel.addMouseListener(this);
         gamePanel.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -210,16 +225,58 @@ public class InputHandler implements KeyListener {
             return;
 
         if (code >= KeyEvent.VK_A && code <= KeyEvent.VK_Z) {
+            int oldPlayerIdx = gameState.playerIdx;
             gameState.handleChar((char) ('A' + code - KeyEvent.VK_A), animController);
+
+            // Send progress if player advanced and we're in multiplayer mode
+            if (gameState.isMultiplayerMode() && gameState.playerIdx > oldPlayerIdx &&
+                    networkClient != null && localPlayer != null) {
+                try {
+                    networkClient.sendMessage(new NetworkMessage(
+                            NetworkMessage.MessageType.PLAYER_PROGRESS,
+                            localPlayer.id, null, gameState.playerIdx));
+                } catch (Exception ex1) {
+                    System.err.println("Error sending player progress: " + ex1.getMessage());
+                }
+            }
         } else if (code >= KeyEvent.VK_0 && code <= KeyEvent.VK_9) {
+            int oldPlayerIdx = gameState.playerIdx;
             gameState.handleChar((char) ('0' + code - KeyEvent.VK_0), animController);
+
+            // Send progress if player advanced and we're in multiplayer mode
+            if (gameState.isMultiplayerMode() && gameState.playerIdx > oldPlayerIdx &&
+                    networkClient != null && localPlayer != null) {
+                try {
+                    networkClient.sendMessage(new NetworkMessage(
+                            NetworkMessage.MessageType.PLAYER_PROGRESS,
+                            localPlayer.id, null, gameState.playerIdx));
+                } catch (Exception ex2) {
+                    System.err.println("Error sending player progress: " + ex2.getMessage());
+                }
+            }
         }
     }
 
     private void handleReadyStateKeyPress(int code) {
+        if (code == KeyEvent.VK_ESCAPE && gameState.isShowOnlineUI()) {
+            gameState.setShowOnlineUI(false);
+            gamePanel.repaint();
+            return;
+        }
+
         if (code == KeyEvent.VK_SPACE) {
             gameState.isSpaceHeld = true;
-            gameState.resetRun(animController);
+            // Don't allow starting game with SPACE if in online mode
+            if (!gamePanel.isOnlineMode()) {
+                gameState.resetRun(animController);
+            }
+            gamePanel.repaint();
+            return;
+        }
+
+        if (code == KeyEvent.VK_TAB) {
+            animController.playIfAudible(gameState.sStart);
+            gamePanel.createOnlineRoom();
             gamePanel.repaint();
             return;
         }
@@ -288,5 +345,53 @@ public class InputHandler implements KeyListener {
 
         if (e.getKeyCode() == KeyEvent.VK_SPACE)
             gameState.isSpaceHeld = false;
+    }
+
+    @Override
+    public void mouseClicked(MouseEvent e) {
+        if (gameState.isShowOnlineUI()) {
+            handleOnlineUIClick(e);
+        }
+    }
+
+    @Override
+    public void mousePressed(MouseEvent e) {
+    }
+
+    @Override
+    public void mouseReleased(MouseEvent e) {
+    }
+
+    @Override
+    public void mouseEntered(MouseEvent e) {
+    }
+
+    @Override
+    public void mouseExited(MouseEvent e) {
+    }
+
+    private void handleOnlineUIClick(MouseEvent e) {
+        int x = e.getX();
+        int y = e.getY();
+
+        int botX = gameState.botBaseX;
+        int botY = gameState.groundY;
+        int buttonWidth = 80;
+        int buttonHeight = 30;
+        int buttonY = botY - 200 + 70;
+
+        Rectangle createRoomButton = new Rectangle(botX - 120, buttonY, buttonWidth, buttonHeight);
+        Rectangle refreshButton = new Rectangle(botX - 30, buttonY, buttonWidth, buttonHeight);
+        Rectangle joinRoomButton = new Rectangle(botX + 60, buttonY, buttonWidth, buttonHeight);
+
+        if (createRoomButton.contains(x, y)) {
+            System.out.println("สร้างห้อง clicked!");
+        } else if (refreshButton.contains(x, y)) {
+            System.out.println("รีเฟรช clicked!");
+        } else if (joinRoomButton.contains(x, y)) {
+            System.out.println("เข้าห้อง clicked!");
+        }
+
+        gamePanel.repaint();
     }
 }

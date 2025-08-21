@@ -41,7 +41,14 @@ public class GameRenderer {
         g2.translate(shakeX, shakeY);
 
         try {
-            gameState.bot.draw(g2, gameState.CHAR_SCALE);
+            if (gameState.isShowOnlineUI()) {
+                drawOnlineUI(g2);
+            } else {
+                // Use opponent character pack if available in multiplayer, otherwise default
+                // bot
+                // Always use bot character for opponent (already faces left)
+                gameState.bot.draw(g2, gameState.CHAR_SCALE);
+            }
         } catch (Throwable ignored) {
         }
 
@@ -115,9 +122,12 @@ public class GameRenderer {
 
         int botX = gamePanel.getWidth() - barW - 50;
         int botY = 160;
+        String opponentLabel = gameState.isMultiplayerMode() && !gameState.getOpponentName().isEmpty()
+                ? gameState.getOpponentName()
+                : "Bot";
         drawSingleHealthBar(g2, botX, botY, barW, barH,
                 gameState.botHealth / (double) GameConfig.MAX_HEALTH,
-                "Bot");
+                opponentLabel);
     }
 
     private void drawSingleHealthBar(Graphics2D g2, int barX, int barY, int barW, int barH,
@@ -214,6 +224,15 @@ public class GameRenderer {
                 gg.drawRoundRect(x - 3, y - 3, keyW + 6, keyH + 6, 12, 12);
                 gg.setStroke(old);
             }
+
+            // Draw opponent progress if in multiplayer mode
+            if (gameState.isMultiplayerMode() && i == gameState.getOpponentIdx()) {
+                Stroke old = gg.getStroke();
+                gg.setStroke(new BasicStroke(3f));
+                gg.setColor(new Color(255, 100, 100, 180)); // Red color for opponent
+                gg.drawRoundRect(x - 3, y - 3, keyW + 6, keyH + 6, 12, 12);
+                gg.setStroke(old);
+            }
         }
         gg.dispose();
     }
@@ -244,7 +263,17 @@ public class GameRenderer {
 
     private void drawFooterInfo(Graphics2D g2) {
         if (gameState.state == GameConfig.State.READY) {
-            drawSpacePrompt(g2, "กด ", " เพื่อเริ่มเกม");
+            // Don't show space prompt if in online mode
+            if (!gamePanel.isOnlineMode()) {
+                drawSpacePrompt(g2, "กด ", " เพื่อเริ่มเกม");
+                drawTabPrompt(g2, "กด ", " เพื่อเข้าออนไลน์");
+            } else {
+                g2.setFont(uiSettings.fontBold16);
+                g2.setColor(new Color(100, 255, 100));
+                centerTextAt(g2, "โหมดออนไลน์ - รอผู้เล่นอื่น...", gamePanel.getWidth() / 2,
+                        gamePanel.getHeight() - 150);
+            }
+
             drawArrowPrompt(g2, "กด ", " เพื่อเลือกตัวละคร");
             drawBackspacePrompt(g2, "กด ", " เพื่อตั้งค่า");
         } else if (gameState.state == GameConfig.State.GAMEOVER) {
@@ -369,6 +398,33 @@ public class GameRenderer {
         int x = (gamePanel.getWidth() - totalW) / 2;
 
         g2.setColor(Color.WHITE);
+        g2.drawString(pre, x, y);
+        int curX = x + fm.stringWidth(pre);
+
+        if (frame != null) {
+            g2.drawImage(frame, curX, y - spriteH + 2, spriteW, spriteH, null);
+            curX += spriteW;
+        }
+
+        g2.drawString(post, curX, y);
+    }
+
+    private void drawTabPrompt(Graphics2D g2, String pre, String post) {
+        BufferedImage frame = uiSettings.tabFrameNormal != null
+                ? uiSettings.tabFrameNormal
+                : null;
+
+        g2.setFont(uiSettings.fontBold16);
+        FontMetrics fm = g2.getFontMetrics();
+        int spriteH = 22;
+        int spriteW = (frame != null)
+                ? (int) (frame.getWidth() * (spriteH / (double) frame.getHeight()))
+                : 0;
+        int totalW = fm.stringWidth(pre) + spriteW + fm.stringWidth(post);
+        int y = gamePanel.getHeight() - 150;
+        int x = (gamePanel.getWidth() - totalW) / 2;
+
+        g2.setColor(new Color(100, 255, 100));
         g2.drawString(pre, x, y);
         int curX = x + fm.stringWidth(pre);
 
@@ -568,5 +624,67 @@ public class GameRenderer {
             g2.setFont(uiSettings.fontBold20);
             g2.drawString("-1", gameState.botDamageX, gameState.botDamageY - yOffset);
         }
+    }
+
+    private void drawOnlineUI(Graphics2D g2) {
+        int botX = gameState.botBaseX;
+        int botY = gameState.groundY;
+        int panelWidth = 300;
+        int panelHeight = 200;
+
+        g2.setColor(new Color(0, 0, 0, 150));
+        g2.fillRoundRect(botX - panelWidth / 2, botY - panelHeight - 20, panelWidth, panelHeight, 15, 15);
+
+        g2.setColor(Color.WHITE);
+        g2.setStroke(new BasicStroke(2));
+        g2.drawRoundRect(botX - panelWidth / 2, botY - panelHeight - 20, panelWidth, panelHeight, 15, 15);
+
+        g2.setFont(uiSettings.fontBold20);
+        String title = "โหมดออนไลน์";
+        int titleWidth = g2.getFontMetrics().stringWidth(title);
+        g2.drawString(title, botX - titleWidth / 2, botY - panelHeight + 10);
+
+        g2.setFont(uiSettings.fontPlain16);
+        String playerText = "ผู้เล่น: " + gameState.getPlayerName();
+        int playerTextWidth = g2.getFontMetrics().stringWidth(playerText);
+        g2.drawString(playerText, botX - playerTextWidth / 2, botY - panelHeight + 40);
+
+        // Draw status message if available
+        String statusMessage = gameState.getStatusMessage();
+        if (statusMessage != null && !statusMessage.isEmpty()) {
+            g2.setColor(new Color(255, 255, 0)); // Yellow color for status
+            g2.setFont(uiSettings.fontBold20);
+            int statusWidth = g2.getFontMetrics().stringWidth(statusMessage);
+            g2.drawString(statusMessage, botX - statusWidth / 2, botY - panelHeight + 70);
+        }
+
+        int buttonWidth = 80;
+        int buttonHeight = 30;
+        int buttonY = botY - panelHeight + 100; // Move buttons down to avoid overlapping with status message
+
+        g2.setColor(new Color(70, 130, 180));
+        g2.fillRoundRect(botX - 120, buttonY, buttonWidth, buttonHeight, 8, 8);
+        g2.fillRoundRect(botX - 30, buttonY, buttonWidth, buttonHeight, 8, 8);
+        g2.fillRoundRect(botX + 60, buttonY, buttonWidth, buttonHeight, 8, 8);
+
+        g2.setColor(Color.WHITE);
+        g2.drawRoundRect(botX - 120, buttonY, buttonWidth, buttonHeight, 8, 8);
+        g2.drawRoundRect(botX - 30, buttonY, buttonWidth, buttonHeight, 8, 8);
+        g2.drawRoundRect(botX + 60, buttonY, buttonWidth, buttonHeight, 8, 8);
+
+        g2.setFont(uiSettings.fontSmall12);
+        drawCenteredText(g2, "สร้างห้อง", botX - 80, buttonY + 20);
+        drawCenteredText(g2, "รีเฟรช", botX + 10, buttonY + 20);
+        drawCenteredText(g2, "เข้าห้อง", botX + 100, buttonY + 20);
+
+        g2.setFont(uiSettings.fontPlain16);
+        g2.setColor(new Color(200, 200, 200));
+        drawCenteredText(g2, "กดเพื่อจัดการห้องออนไลน์", botX, botY - panelHeight + 180); // Adjust text position
+    }
+
+    private void drawCenteredText(Graphics2D g2, String text, int x, int y) {
+        FontMetrics fm = g2.getFontMetrics();
+        int textWidth = fm.stringWidth(text);
+        g2.drawString(text, x - textWidth / 2, y);
     }
 }

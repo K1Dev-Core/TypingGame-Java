@@ -25,6 +25,18 @@ public class GameState {
 
     public CharacterPack player;
     public CharacterPack bot;
+    public CharacterPack opponent;
+
+    private boolean isMultiplayerMode = false;
+    private String currentWord = "";
+    private String playerName = "";
+    private boolean showOnlineUI = false;
+    private String statusMessage = "";
+
+    // Multiplayer opponent data
+    private String opponentName = "";
+    private int opponentIdx = 0;
+    private CharacterPack opponentCharacterPack;
 
     public int groundY;
     public int playerBaseX;
@@ -38,12 +50,9 @@ public class GameState {
 
     public WordEntry current = new WordEntry("HELLO", "HELLO", "เฮลโล", "สวัสดี");
     public int playerIdx = 0;
-    public int botIdx = 0;
     public int mistakes = 0;
     public int wordsCompleted = 0;
-    public int botWordsCompleted = 0;
     public long startMs = 0;
-    public long lastBotTypeMs = 0;
 
     public long flashUntil = 0;
     public long shakeUntil = 0;
@@ -84,8 +93,8 @@ public class GameState {
 
     public boolean playerTakingHit = false;
     public long playerHitUntil = 0;
-    public boolean botTakingHit = false;
-    public long botHitUntil = 0;
+    public boolean opponentTakingHit = false;
+    public long opponentHitUntil = 0;
 
     public boolean showPlayerDamage = false;
     public boolean showBotDamage = false;
@@ -228,8 +237,6 @@ public class GameState {
         }
 
         playerIdx = 0;
-        botIdx = 0;
-        lastBotTypeMs = System.currentTimeMillis();
 
         if (uiSettings != null) {
             uiSettings.speakCurrentWord(current);
@@ -238,21 +245,18 @@ public class GameState {
 
     public void resetRun(AnimationController animController) {
         wordsCompleted = 0;
-        botWordsCompleted = 0;
         comboCount = 0;
         playerHealth = GameConfig.MAX_HEALTH;
         botHealth = GameConfig.MAX_HEALTH;
         playerIdx = 0;
-        botIdx = 0;
-        lastBotTypeMs = 0;
         pendingNextWord = false;
         pendingGameOver = false;
         gameOverWinner = "";
         botSeq = false;
         playerSeq = false;
         playerTakingHit = false;
-        botTakingHit = false;
-        playerHitUntil = botHitUntil = 0;
+        opponentTakingHit = false;
+        playerHitUntil = opponentHitUntil = 0;
         showPlayerDamage = false;
         showBotDamage = false;
         playerDamageUntil = botDamageUntil = 0;
@@ -333,10 +337,14 @@ public class GameState {
             player.x = Math.min(botBaseX - 64, bot.x - 64);
             player.y = groundY;
             animController.setAnim(player, CharacterPack.Anim.ATTACK);
-            animController.setAnim(bot, CharacterPack.Anim.TAKE_HIT);
+            if (isMultiplayerMode && opponent != null) {
+                animController.setAnim(opponent, CharacterPack.Anim.TAKE_HIT);
+                opponentTakingHit = true;
+                opponentHitUntil = now + TAKE_HIT_HOLD_MS;
+            } else if (bot != null) {
+                animController.setAnim(bot, CharacterPack.Anim.TAKE_HIT);
+            }
             animController.playIfAudible(sHit);
-            botTakingHit = true;
-            botHitUntil = now + TAKE_HIT_HOLD_MS;
             showBotDamage = true;
             botDamageUntil = now + 1000;
             botDamageX = panelWidth - 100;
@@ -402,7 +410,9 @@ public class GameState {
     public void update(long now, AnimationController animController) {
         if (state == GameConfig.State.PLAYING) {
             comboEffect.update();
-            updateBotTyping(now, animController);
+            if (isMultiplayerMode) {
+                updateMultiplayerTyping(now, animController);
+            }
         }
         if (state == GameConfig.State.READY || state == GameConfig.State.GAMEOVER) {
             if (now - spaceAnimLast >= SPACE_ANIM_MS) {
@@ -419,36 +429,17 @@ public class GameState {
         }
     }
 
-    private void updateBotTyping(long now, AnimationController animController) {
-        if (now - lastBotTypeMs > botTypeSpeedMin + rng.nextDouble() * (botTypeSpeedMax - botTypeSpeedMin)) {
-            if (botIdx < current.word.length()) {
-                botIdx++;
-
-                if (botIdx >= current.word.length()) {
-                    botWordsCompleted++;
-                    playerHealth = Math.max(0, playerHealth - 1);
-                    comboCount = 0;
-                    startBotAttackSequence();
-
-                    if (playerHealth <= 0) {
-                        pendingGameOver = true;
-                        gameOverWinner = "OVER";
-                    } else {
-                        nextWord();
-                    }
-                }
-            }
-            lastBotTypeMs = now;
-        }
-
+    private void updateMultiplayerTyping(long now, AnimationController animController) {
         if (playerTakingHit && now >= playerHitUntil) {
             animController.setAnim(player, CharacterPack.Anim.IDLE);
             playerTakingHit = false;
         }
 
-        if (botTakingHit && now >= botHitUntil) {
-            animController.setAnim(bot, CharacterPack.Anim.IDLE);
-            botTakingHit = false;
+        if (opponentTakingHit && now >= opponentHitUntil) {
+            if (opponent != null) {
+                animController.setAnim(opponent, CharacterPack.Anim.IDLE);
+            }
+            opponentTakingHit = false;
         }
 
         if (showPlayerDamage && now >= playerDamageUntil) {
@@ -467,6 +458,112 @@ public class GameState {
             frames = 0;
             lastFpsTime = now;
         }
+    }
+
+    public void resetToReady() {
+        state = GameConfig.State.READY;
+        previousState = GameConfig.State.READY;
+        playerIdx = 0;
+        mistakes = 0;
+        wordsCompleted = 0;
+        playerHealth = GameConfig.MAX_HEALTH;
+        botHealth = GameConfig.MAX_HEALTH;
+        comboCount = 0;
+        startMs = 0;
+        flashUntil = 0;
+        shakeUntil = 0;
+        popUntil = 0;
+        pendingGameOver = false;
+        gameOverWinner = "";
+        showPlayerDamage = false;
+        showBotDamage = false;
+        playerTakingHit = false;
+        opponentTakingHit = false;
+        current = new WordEntry("HELLO", "HELLO", "เฮลโล", "สวัสดี");
+    }
+
+    public void startGame() {
+        if (state == GameConfig.State.READY) {
+            state = GameConfig.State.PLAYING;
+            startMs = System.currentTimeMillis();
+            if (!isMultiplayerMode) {
+                nextWord();
+            }
+            if (bgMusic != null) {
+                bgMusic.stop();
+                bgMusic.play();
+            }
+        }
+    }
+
+    public void setMultiplayerMode(boolean multiplayer) {
+        this.isMultiplayerMode = multiplayer;
+        if (multiplayer && opponent == null) {
+            opponent = new CharacterPack("./res/characters/Wizard/", botBaseX, groundY, false);
+        }
+    }
+
+    public boolean isMultiplayerMode() {
+        return isMultiplayerMode;
+    }
+
+    public void setCurrentWord(String word) {
+        if (word != null && !word.isEmpty()) {
+            this.currentWord = word;
+            current = new WordEntry(word.toUpperCase(), word.toUpperCase(), word, word);
+        }
+    }
+
+    public String getCurrentWord() {
+        return currentWord;
+    }
+
+    public void setPlayerName(String name) {
+        this.playerName = name;
+    }
+
+    public String getPlayerName() {
+        return playerName;
+    }
+
+    public void setShowOnlineUI(boolean show) {
+        this.showOnlineUI = show;
+    }
+
+    public boolean isShowOnlineUI() {
+        return showOnlineUI;
+    }
+
+    public void setStatusMessage(String message) {
+        this.statusMessage = message;
+    }
+
+    public String getStatusMessage() {
+        return statusMessage;
+    }
+
+    public void setOpponentName(String name) {
+        this.opponentName = name;
+    }
+
+    public String getOpponentName() {
+        return opponentName;
+    }
+
+    public void setOpponentIdx(int idx) {
+        this.opponentIdx = idx;
+    }
+
+    public int getOpponentIdx() {
+        return opponentIdx;
+    }
+
+    public void setOpponentCharacterPack(CharacterPack pack) {
+        this.opponentCharacterPack = pack;
+    }
+
+    public CharacterPack getOpponentCharacterPack() {
+        return opponentCharacterPack;
     }
 
 }
