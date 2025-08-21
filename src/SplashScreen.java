@@ -13,6 +13,7 @@ public class SplashScreen {
     private long startTime;
     private boolean isDone = false;
 
+    // enum ตัวแปรประเภทไว้เก็บเช้ต
     public enum State {
         FADE_IN,
         DISPLAY,

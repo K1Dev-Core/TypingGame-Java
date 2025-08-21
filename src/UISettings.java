@@ -26,14 +26,8 @@ public class UISettings {
     public boolean draggingSlider = false;
     public String draggingSliderType = null;
 
-    public final String[] CHAR_NAMES = { "Mushroom", "MedievalKing", "Skeleton" };
-    public final String[] CHAR_PATHS = {
-            "./res/characters/Mushroom",
-            "./res/characters/MedievalKing",
-            "./res/characters/Skeleton"
-    };
-    public final int[] CHAR_BASELINE = { 20, -20, 20 };
-    public int selectedCharIdx = 1;
+    // Character selection is now handled by CharacterConfig
+    public int selectedCharIdx = 0; // Index in the array of player characters
 
     public Rectangle prevCharRect, nextCharRect, applyCharRect, previewBoxRect;
     public CharacterPack previewPack = null;
@@ -247,22 +241,15 @@ public class UISettings {
         }
     }
 
-    public CharacterPack.Config configFor(int idx) {
-        if (idx == 1) {
-            return new CharacterPack.Config()
-                    .set(CharacterPack.Anim.IDLE, 8, 120, true)
-                    .set(CharacterPack.Anim.ATTACK, 4, 80, false)
-                    .set(CharacterPack.Anim.TAKE_HIT, 4, 90, false)
-                    .set(CharacterPack.Anim.DEATH, 6, 150, false)
-                    .set(CharacterPack.Anim.WALK, 1, 1000, true);
-        }
-        return null;
-    }
-
     public void updatePreviewPack() {
-        CharacterPack.Config cfg = configFor(selectedCharIdx);
-        previewPack = new CharacterPack(CHAR_PATHS[selectedCharIdx], 0, 0, false, cfg, CHAR_BASELINE[selectedCharIdx]);
-        previewPack.setAnim(CharacterPack.Anim.IDLE);
+        CharacterConfig config = CharacterConfig.getInstance();
+        String[] playerCharIds = config.getPlayerCharacterIds();
+
+        if (playerCharIds.length > 0) {
+            String selectedCharId = playerCharIds[selectedCharIdx];
+            previewPack = config.createCharacterPack(selectedCharId, 0, 0, false);
+            previewPack.setAnim(CharacterPack.Anim.IDLE);
+        }
     }
 
     public void setTtsSpeedLevel(int level) {

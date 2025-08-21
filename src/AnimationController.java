@@ -1,10 +1,12 @@
 public class AnimationController {
     private final GameState gameState;
     private final UISettings uiSettings;
+    private final CharacterConfig characterConfig;
 
     public AnimationController(GameState gameState, UISettings uiSettings) {
         this.gameState = gameState;
         this.uiSettings = uiSettings;
+        this.characterConfig = CharacterConfig.getInstance();
     }
 
     public void setAnim(CharacterPack c, CharacterPack.Anim a) {
@@ -23,43 +25,58 @@ public class AnimationController {
     }
 
     public void initializeCharacters() {
-        CharacterPack.Config heroCfg = new CharacterPack.Config()
-                .set(CharacterPack.Anim.IDLE, 8, 120, true)
-                .set(CharacterPack.Anim.ATTACK, 4, 80, false)
-                .set(CharacterPack.Anim.TAKE_HIT, 4, 90, false)
-                .set(CharacterPack.Anim.DEATH, 6, 150, false)
-                .set(CharacterPack.Anim.WALK, 1, 1000, true);
 
-        gameState.player = new CharacterPack(
-                "./res/characters/MedievalKing",
-                160, 470, false,
-                heroCfg, -20);
+        gameState.player = characterConfig.createCharacterPack(
+                "medieval_king",
+                160, 470, false);
 
-        gameState.bot = new CharacterPack(
-                "./res/characters/Skeleton",
-                920, 470, true,
-                null, 20);
+        gameState.bot = characterConfig.createCharacterPack(
+                "flying_eye",
+                920, 470, true);
 
         setAnim(gameState.player, CharacterPack.Anim.IDLE);
         setAnim(gameState.bot, CharacterPack.Anim.IDLE);
     }
 
     public void cycleCharacter(int dir) {
-        uiSettings.selectedCharIdx = (uiSettings.selectedCharIdx + dir + uiSettings.CHAR_NAMES.length)
-                % uiSettings.CHAR_NAMES.length;
+        String[] playerCharIds = characterConfig.getPlayerCharacterIds();
+        uiSettings.selectedCharIdx = (uiSettings.selectedCharIdx + dir + playerCharIds.length)
+                % playerCharIds.length;
         applySelectedCharacter();
         playIfAudible(gameState.sClick);
     }
 
     public void applySelectedCharacter() {
-        CharacterPack.Config cfg = uiSettings.configFor(uiSettings.selectedCharIdx);
-        gameState.player = new CharacterPack(
-                uiSettings.CHAR_PATHS[uiSettings.selectedCharIdx],
-                gameState.playerBaseX,
-                gameState.groundY, false,
-                cfg,
-                uiSettings.CHAR_BASELINE[uiSettings.selectedCharIdx]);
+        String[] playerCharIds = characterConfig.getPlayerCharacterIds();
+        if (playerCharIds.length > 0) {
+            String selectedCharId = playerCharIds[uiSettings.selectedCharIdx];
+            gameState.player = characterConfig.createCharacterPack(
+                    selectedCharId,
+                    gameState.playerBaseX,
+                    gameState.groundY,
+                    false);
 
-        setAnim(gameState.player, CharacterPack.Anim.IDLE);
+            setAnim(gameState.player, CharacterPack.Anim.IDLE);
+        }
+    }
+
+    public void randomizeEnemy() {
+        CharacterConfig.CharacterData[] enemyChars = characterConfig.getEnemyCharacters();
+        String[] enemyCharIds = new String[enemyChars.length];
+
+        for (int i = 0; i < enemyChars.length; i++) {
+            enemyCharIds[i] = enemyChars[i].id;
+        }
+
+        if (enemyCharIds.length > 0) {
+            String randomEnemyId = enemyCharIds[gameState.rng.nextInt(enemyCharIds.length)];
+            gameState.bot = characterConfig.createCharacterPack(
+                    randomEnemyId,
+                    gameState.botBaseX,
+                    gameState.groundY,
+                    true);
+
+            setAnim(gameState.bot, CharacterPack.Anim.IDLE);
+        }
     }
 }

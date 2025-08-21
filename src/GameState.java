@@ -348,20 +348,16 @@ public class GameState {
                 animController.setAnim(player, CharacterPack.Anim.DEATH);
                 animController.playIfAudible(sDeath);
                 animController.setAnim(bot, CharacterPack.Anim.IDLE);
+
+                // Save the score when game ends
+                ScoreManager.getInstance().saveScore(wordsCompleted);
             }
         }
     }
 
     public void update(long now, AnimationController animController) {
         if (state == GameConfig.State.PLAYING) {
-            if (now - startMs >= GameConfig.ROUND_SECONDS * 1000L) {
-                state = GameConfig.State.GAMEOVER;
-                current = new WordEntry("OVER", "OVER", "", "");
-                idx = 0;
-                animController.setAnim(player, CharacterPack.Anim.DEATH);
-                animController.playIfAudible(sDeath);
-                animController.setAnim(bot, CharacterPack.Anim.IDLE);
-            }
+            // Time limit removed - game continues until player loses all health
         }
 
         if (state == GameConfig.State.READY || state == GameConfig.State.GAMEOVER) {

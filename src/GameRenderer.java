@@ -67,6 +67,9 @@ public class GameRenderer {
 
         drawWord(g2, now);
         drawFooterInfo(g2);
+        if (gameState.state != GameConfig.State.PLAYING) {
+            drawScoreInfo(g2);
+        }
         if (gameState.state == GameConfig.State.PLAYING)
             drawBars(g2);
         gameState.hit.draw(g2);
@@ -78,13 +81,13 @@ public class GameRenderer {
     }
 
     private void drawHUD(Graphics2D g2, long now) {
-        long left = gameState.state == GameConfig.State.PLAYING
-                ? Math.max(0, GameConfig.ROUND_SECONDS * 1000L - (now - gameState.startMs))
-                : GameConfig.ROUND_SECONDS * 1000L;
-        int mm = (int) (left / 1000) / 60;
-        int ss = (int) (left / 1000) % 60;
+        long elapsed = gameState.state == GameConfig.State.PLAYING
+                ? (now - gameState.startMs)
+                : 0;
+        int mm = (int) (elapsed / 1000) / 60;
+        int ss = (int) (elapsed / 1000) % 60;
         double minutes = gameState.state == GameConfig.State.PLAYING
-                ? Math.max(1e-6, (now - gameState.startMs) / 60000.0)
+                ? Math.max(1e-6, elapsed / 60000.0)
                 : 0;
         double wpm = minutes > 0 ? (gameState.correct / 5.0) / minutes : 0.0;
         double acc = gameState.totalTyped == 0
@@ -259,6 +262,28 @@ public class GameRenderer {
             drawArrowPrompt(g2, "กด ", " เพื่อเลือกตัวละคร");
             drawBackspacePrompt(g2, "กด ", " เพื่อตั้งค่า");
         }
+    }
+
+    private void drawScoreInfo(Graphics2D g2) {
+        ScoreManager scoreManager = ScoreManager.getInstance();
+        int highScore = scoreManager.getHighScore();
+        int lastScore = scoreManager.getLastScore();
+
+        int panelWidth = 200;
+        int panelHeight = 60;
+        int panelX = gamePanel.getWidth() - panelWidth - 10;
+        int panelY = 20;
+
+        g2.setColor(CLR_HUD_PANEL);
+        g2.fillRoundRect(panelX, panelY, panelWidth, panelHeight, 12, 12);
+
+        g2.setColor(new Color(255, 215, 0));
+        g2.setFont(uiSettings.fontBold16);
+        g2.drawString("มากสุด: " + highScore, panelX + 10, panelY + 25);
+
+        g2.setColor(new Color(200, 200, 200));
+        g2.setFont(uiSettings.fontPlain16);
+        g2.drawString("ล่าสุด: " + lastScore, panelX + 10, panelY + 50);
     }
 
     private void drawSpacePrompt(Graphics2D g2, String pre, String post) {
@@ -537,7 +562,18 @@ public class GameRenderer {
 
         g2.setFont(uiSettings.fontSmall11);
         g2.setColor(Color.WHITE);
-        g2.drawString("ตัวละคร: " + uiSettings.CHAR_NAMES[uiSettings.selectedCharIdx],
+
+        String[] playerCharIds = CharacterConfig.getInstance().getPlayerCharacterIds();
+        String characterName = "Character";
+        if (playerCharIds.length > 0) {
+            CharacterConfig.CharacterData data = CharacterConfig.getInstance()
+                    .getCharacter(playerCharIds[uiSettings.selectedCharIdx]);
+            if (data != null) {
+                characterName = data.name;
+            }
+        }
+
+        g2.drawString("ตัวละคร: " + characterName,
                 previewBoxRect.x + 10, previewBoxRect.y + 16);
     }
 
