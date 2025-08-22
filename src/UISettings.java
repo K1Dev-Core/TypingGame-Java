@@ -34,6 +34,7 @@ public class UISettings {
 
     public BufferedImage spaceSheet, spaceFrameNormal, spaceFramePressed;
     public BufferedImage backspaceSheet, backspaceFrameNormal, backspaceFramePressed;
+    public BufferedImage eSheet,eFrameNormal, eFramePressed;
     public BufferedImage enterSheet, enterFrameNormal, enterFramePressed;
     public BufferedImage tabSheet, tabFrameNormal, tabFramePressed;
     public BufferedImage arrowLeftSheet, arrowLeftNormal, arrowLeftPressed;
@@ -83,6 +84,16 @@ public class UISettings {
                 int fh = backspaceSheet.getHeight();
                 backspaceFrameNormal = backspaceSheet.getSubimage(0, 0, fw, fh);
                 backspaceFramePressed = backspaceSheet.getSubimage(fw, 0, fw, fh);
+            }
+        } catch (Exception ignored) {
+        }
+         try {
+            eSheet = ImageIO.read(new File("./res/keys/E.png"));
+            if (eSheet != null) {
+                int fw = eSheet.getWidth() / 2;
+                int fh = eSheet.getHeight();
+                eFrameNormal = eSheet.getSubimage(0, 0, fw, fh);
+                eFramePressed = eSheet.getSubimage(fw, 0, fw, fh);
             }
         } catch (Exception ignored) {
         }

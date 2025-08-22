@@ -18,8 +18,14 @@ public class NetworkMessage implements Serializable {
 
     public NetworkMessage(MessageType type, String playerId, String roomId, Object data) {
         this.type = type;
-        this.playerId = playerId;
-        this.roomId = roomId;
+        this.playerId = playerId != null ? playerId : "";
+        this.roomId = roomId != null ? roomId : "";
         this.data = data;
+    }
+    
+    @Override
+    public String toString() {
+        return String.format("NetworkMessage{type=%s, playerId='%s', roomId='%s', data=%s}", 
+                           type, playerId, roomId, data != null ? data.getClass().getSimpleName() : "null");
     }
 }

@@ -118,14 +118,14 @@ public class GameState implements StateManager {
     }
 
     private void initSoundPools() {
-        sStart = new SoundPool("./res/wav/click6_1.wav", 4);
+        sStart = new SoundPool("./res/wav/start_game.wav", 4);
         sType = new SoundPool(GameConfig.CLICK_WAV_PATH, 6);
         sErr = new SoundPool("./res/wav/click14_3.wav", 4);
         sClick = new SoundPool("./res/wav/click15_1.wav", 6);
         sSlash = new SoundPool("./res/wav/slash1.wav", 4);
         sHit = new SoundPool("./res/wav/villager.wav", 4);
         sDeath = new SoundPool("./res/wav/classic_hurt.wav", 2);
-        sCountdown = new SoundPool("./res/wav/click15_1.wav", 3);
+        sCountdown = new SoundPool("./res/wav/click_BlueS.wav", 3);
     }
 
     private void initBackgroundMusic() {
@@ -407,6 +407,13 @@ public class GameState implements StateManager {
                 wordsCompleted++;
                 
                 if (OnlineMatchManager.getInstance().isRacing()) {
+                 
+                    if (playerHealth <= 0) {
+                        pendingGameOver = true;
+                        gameOverWinner = "OVER";
+                        System.out.println("Client-side game over detected: Player health is 0");
+                    }
+                   
                 } else {
                     botHealth = Math.max(0, botHealth - 1);
                     startPlayerAttackSequence();

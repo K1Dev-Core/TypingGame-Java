@@ -6,8 +6,8 @@ import java.util.List;
 public class NotificationSystem {
     private static final List<Notification> notifications = new ArrayList<>();
     private static final int MAX_NOTIFICATIONS = 5;
-    private static final int NOTIFICATION_DURATION = 3000; // 3 seconds
-    private static final int FADE_DURATION = 500; // 0.5 seconds
+    private static final int NOTIFICATION_DURATION = 3000; 
+    private static final int FADE_DURATION = 500; 
     
     public static void showNotification(String message, NotificationType type) {
         if (notifications.size() >= MAX_NOTIFICATIONS) {

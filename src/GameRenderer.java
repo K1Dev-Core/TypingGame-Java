@@ -268,6 +268,7 @@ public class GameRenderer {
         } else if (gameState.state == GameConfig.State.GAMEOVER) {
             if (!isOnline) {
                 drawSpacePrompt(g2, "กด ", " เพื่อเริ่มใหม่");
+                drawTabPrompt(g2, "กด ", " เพื่อเปิดโหมดออนไลน์");
                 drawArrowPrompt(g2, "กด ", " เพื่อเลือกตัวละคร");
                 drawBackspacePrompt(g2, "กด ", " เพื่อตั้งค่า");
             } else {
@@ -289,7 +290,7 @@ public class GameRenderer {
         if (record == null) return;
         
         int panelWidth = RenderConfig.SCORE_PANEL_WIDTH;
-        int panelHeight = 100; // Reduced height
+        int panelHeight = 100; 
         int panelX = gamePanel.getWidth() - panelWidth - RenderConfig.SCORE_PANEL_MARGIN;
         int panelY = RenderConfig.SCORE_PANEL_Y;
         
@@ -427,7 +428,7 @@ public class GameRenderer {
     }
     
     private void drawEPrompt(Graphics2D g2, String pre, String post) {
-        BufferedImage frame = uiSettings.backspaceFrameNormal; // Reuse backspace frame for ESC
+        BufferedImage frame = uiSettings.eFrameNormal; 
         
         g2.setFont(uiSettings.fontBold16);
         FontMetrics fm = g2.getFontMetrics();
@@ -439,7 +440,7 @@ public class GameRenderer {
         int y = gamePanel.getHeight() - RenderConfig.BACKSPACE_PROMPT_Y_OFFSET;
         int x = (gamePanel.getWidth() - totalW) / 2;
 
-        g2.setColor(new Color(255, 100, 100)); // Red color for exit
+        g2.setColor(new Color(255, 100, 100));
         g2.drawString(pre, x, y);
         int curX = x + fm.stringWidth(pre);
 

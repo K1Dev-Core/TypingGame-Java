@@ -414,6 +414,14 @@ public class InputHandler implements KeyListener, MouseListener {
             gamePanel.repaint();
             return;
         }
+        
+        if (code == KeyEvent.VK_TAB) {
+            if (!OnlineMatchManager.getInstance().isOnline()) {
+                OnlineUI.enterOnlineMode();
+                gamePanel.repaint();
+            }
+            return;
+        }
 
         if (code == KeyEvent.VK_BACK_SPACE) {
             uiSettings.showSettings = !uiSettings.showSettings;

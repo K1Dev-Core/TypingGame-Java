@@ -157,10 +157,18 @@ public class CharacterConfig {
     }
 
     public String[] getPlayerCharacterIds() {
-        return characters.values().stream()
-                .filter(c -> c.isPlayerCharacter)
+        java.util.List<String> charIds = new java.util.ArrayList<>();
+        
+        if (characters.containsKey("medieval_king")) {
+            charIds.add("medieval_king");
+        }
+        
+        characters.values().stream()
+                .filter(c -> c.isPlayerCharacter && !"medieval_king".equals(c.id))
                 .map(c -> c.id)
-                .toArray(String[]::new);
+                .forEach(charIds::add);
+        
+        return charIds.toArray(new String[0]);
     }
 
     public CharacterPack.Config getCharacterConfig(String characterId) {

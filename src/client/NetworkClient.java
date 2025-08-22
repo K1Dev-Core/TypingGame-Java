@@ -1,8 +1,8 @@
 package client;
 
-import shared.*;
 import java.io.*;
 import java.net.*;
+import shared.*;
 
 public class NetworkClient {
     private Socket socket;
@@ -44,12 +44,23 @@ public class NetworkClient {
     private void readMessages() {
         try {
             while (isConnected) {
-                NetworkMessage message = (NetworkMessage) input.readObject();
-                if (listener != null) {
-                    listener.onMessageReceived(message);
+                try {
+                    NetworkMessage message = (NetworkMessage) input.readObject();
+                    if (listener != null) {
+                        listener.onMessageReceived(message);
+                    }
+                } catch (ClassCastException | ClassNotFoundException | StreamCorruptedException e) {
+                    System.err.println("Message serialization error: " + e.getMessage());
+                    System.err.println("Attempting to continue...");
+                    try {
+                        input.reset();
+                    } catch (IOException resetException) {
+                        System.err.println("Failed to reset input stream: " + resetException.getMessage());
+                        break;
+                    }
                 }
             }
-        } catch (IOException | ClassNotFoundException e) {
+        } catch (IOException e) {
             if (isConnected) {
                 System.err.println("Connection lost: " + e.getMessage());
             }

@@ -1,5 +1,6 @@
 import java.awt.*;
 import java.awt.geom.RoundRectangle2D;
+import shared.Player;
 
 public class OnlineUI {
     private static String playerName = null;
@@ -100,7 +101,7 @@ public class OnlineUI {
         
         
         long now = System.currentTimeMillis();
-        if (now % 2000 < 50) { // Print every 2 seconds briefly
+        if (now % 2000 < 50) { 
             System.out.println("UI State: " + state + ", Countdown: " + manager.getCurrentCountdown());
         }
         
@@ -124,8 +125,9 @@ public class OnlineUI {
                     renderMatchmakingButton(g2, screenWidth, screenHeight);
                 }
                 break;
+            case PROFILE_DISPLAY:
             case COUNTDOWN:
-                renderCountdown(g2, screenWidth, screenHeight);
+                renderSimplifiedCountdownWithProfiles(g2, screenWidth, screenHeight);
                 break;
             case RACING:
                 renderRaceInfo(g2, screenWidth, screenHeight);
@@ -332,9 +334,7 @@ public class OnlineUI {
     }
     
 
-    private static void renderCountdown(Graphics2D g2, int screenWidth, int screenHeight) {
-        renderImprovedCountdown(g2, screenWidth, screenHeight);
-    }
+
     
     private static void renderRaceInfo(Graphics2D g2, int screenWidth, int screenHeight) {
         g2.setColor(Color.YELLOW);
@@ -515,54 +515,70 @@ public class OnlineUI {
         return false;
     }
     
-    private static void renderImprovedCountdown(Graphics2D g2, int screenWidth, int screenHeight) {
+    private static void renderSimplifiedCountdownWithProfiles(Graphics2D g2, int screenWidth, int screenHeight) {
         OnlineMatchManager manager = OnlineMatchManager.getInstance();
+        Player localPlayer = manager.getLocalPlayer();
+        Player opponent = manager.getOpponent();
         int countdown = manager.getCurrentCountdown();
-        long countdownStartTime = manager.getCountdownStartTime();
         
         g2.setColor(new Color(0, 0, 0, 150));
         g2.fillRect(0, 0, screenWidth, screenHeight);
         
-
+        if (localPlayer != null && opponent != null) {
+            renderSimplePlayerInfo(g2, 50, screenHeight / 2 - 100, localPlayer, true);
+            renderSimplePlayerInfo(g2, screenWidth - 250, screenHeight / 2 - 100, opponent, false);
+        }
+        
+        Font vsFont = new Font("Arial", Font.BOLD, 48);
+        g2.setFont(vsFont);
+        g2.setColor(new Color(255, 215, 0));
+        String vsText = "VS";
+        FontMetrics vsFm = g2.getFontMetrics();
+        int vsX = (screenWidth - vsFm.stringWidth(vsText)) / 2;
+        int vsY = screenHeight / 2;
+        g2.drawString(vsText, vsX, vsY);
+        
         if (countdown > 0) {
-
-            Font countdownFont = new Font("Arial", Font.BOLD, 120);
+            Font countdownFont = new Font("Arial", Font.BOLD, 80);
             g2.setFont(countdownFont);
-            
             String countText = String.valueOf(countdown);
             FontMetrics fm = g2.getFontMetrics();
             int x = (screenWidth - fm.stringWidth(countText)) / 2;
-            int y = screenHeight / 2 + fm.getAscent() / 2;
-            
-
+            int y = screenHeight / 2 + 80;
             g2.setColor(Color.WHITE);
             g2.drawString(countText, x, y);
-            
-
-            Font titleFont = new Font("Arial", Font.BOLD, 24);
-            g2.setFont(titleFont);
-            String titleText = "Match Starting";
-            FontMetrics titleFm = g2.getFontMetrics();
-            int titleX = (screenWidth - titleFm.stringWidth(titleText)) / 2;
-            int titleY = y - 80;
-            
-            g2.setColor(Color.LIGHT_GRAY);
-            g2.drawString(titleText, titleX, titleY);
-            
         } else {
-
-            Font fightFont = new Font("Arial", Font.BOLD, 80);
+            Font fightFont = new Font("Arial", Font.BOLD, 60);
             g2.setFont(fightFont);
-            
             String fightText = "FIGHT!";
             FontMetrics fightFm = g2.getFontMetrics();
             int fightX = (screenWidth - fightFm.stringWidth(fightText)) / 2;
-            int fightY = screenHeight / 2;
-            
+            int fightY = screenHeight / 2 + 80;
             g2.setColor(Color.WHITE);
             g2.drawString(fightText, fightX, fightY);
         }
     }
+    
+    private static void renderSimplePlayerInfo(Graphics2D g2, int x, int y, Player player, boolean isLocal) {
+        Font nameFont = new Font("Arial", Font.BOLD, 20);
+        g2.setFont(nameFont);
+        g2.setColor(isLocal ? new Color(100, 255, 100) : new Color(255, 100, 100));
+        g2.drawString(player.name, x, y);
+        
+        PlayerDatabase.PlayerRecord record = PlayerDatabase.getPlayerRecord(player.name);
+        if (record != null) {
+            Font statFont = new Font("Arial", Font.PLAIN, 16);
+            g2.setFont(statFont);
+            
+            g2.setColor(Color.WHITE);
+            g2.drawString("Wins: " + record.onlineWins, x, y + 30);
+            
+            double winRate = record.getWinRate() * 100;
+            g2.drawString(String.format("Win Rate: %.1f%%", winRate), x, y + 55);
+        }
+    }
+    
+
     
     private static void renderGameOverOverlay(Graphics2D g2, int screenWidth, int screenHeight) {
         OnlineMatchManager manager = OnlineMatchManager.getInstance();

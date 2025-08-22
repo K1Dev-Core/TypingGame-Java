@@ -31,21 +31,24 @@ public class ClientHandler implements Runnable {
     @Override
     public void run() {
         try {
-            while (isConnected) {
-                NetworkMessage message = (NetworkMessage) input.readObject();
-                handleMessage(message);
+            while (isConnected && !socket.isClosed()) {
+                try {
+                    NetworkMessage message = (NetworkMessage) input.readObject();
+                    handleMessage(message);
+                } catch (ClassCastException | ClassNotFoundException e) {
+                    System.err.println("Message parsing error for player " + 
+                                     (player != null ? player.name : "unknown") + ": " + e.getMessage());
+                }
             }
-        } catch (IOException | ClassNotFoundException e) {
-            System.out.println("Client disconnected: " + (player != null ? player.name : "Unknown"));
-            
-            if (player != null && currentRoomId != null) {
-                NetworkMessage disconnectMsg = new NetworkMessage(
-                    NetworkMessage.MessageType.PLAYER_DISCONNECTED,
-                    player.id,
-                    currentRoomId,
-                    player.name + " disconnected"
-                );
-                server.broadcastToRoom(currentRoomId, disconnectMsg);
+        } catch (IOException e) {
+            if (isConnected) {
+                if (e.getMessage().contains("Broken pipe") || e.getMessage().contains("Connection reset")) {
+                    System.out.println("Client connection lost (" + e.getMessage() + ") for player: " + 
+                                     (player != null ? player.name : "Unknown"));
+                } else {
+                    System.out.println("Client disconnected (" + e.getMessage() + "): " + 
+                                     (player != null ? player.name : "Unknown"));
+                }
             }
         } finally {
             disconnect();
@@ -209,10 +212,10 @@ public class ClientHandler implements Runnable {
                 if (currentRoomId != null) {
                     GameRoom room = server.getRoom(currentRoomId);
                     if (room != null && room.host.id.equals(player.id) && room.players.size() >= 2) {
-                        if (room.roomState == GameRoom.RoomState.WAITING_FOR_HOST ||
-                                room.roomState == GameRoom.RoomState.WAITING_FOR_PLAYERS) {
+                        if (room.roomState == GameRoom.RoomState.WAITING_FOR_HOST) {
+                            System.out.println("Host manually starting countdown...");
                             room.roomState = GameRoom.RoomState.COUNTDOWN;
-                            room.countdown = 3;
+                            room.countdown = 10;
                             room.countdownStartTime = System.currentTimeMillis();
 
                             server.broadcastToRoom(currentRoomId,
@@ -220,6 +223,8 @@ public class ClientHandler implements Runnable {
                                             player.id, currentRoomId, room.countdown));
 
                             server.scheduleCountdown(currentRoomId);
+                        } else {
+                            System.out.println("Cannot start countdown - room state is: " + room.roomState);
                         }
                     }
                 }
@@ -274,11 +279,40 @@ public class ClientHandler implements Runnable {
                                     new NetworkMessage(NetworkMessage.MessageType.GAME_STATE_UPDATE,
                                             null, currentRoomId, newWord));
                             
-                            System.out.println("3. Broadcasting ROOM_UPDATE with health and scores...");
-                            GameRoom roomCopy = new GameRoom(room);
-                            server.broadcastToRoom(currentRoomId,
-                                    new NetworkMessage(NetworkMessage.MessageType.ROOM_UPDATE,
-                                            null, currentRoomId, roomCopy));
+                        
+                            boolean gameEnded = false;
+                            String winner = null;
+                            for (Player p : room.players) {
+                                if (p.health <= 0) {
+                                    gameEnded = true;
+                                  
+                                    for (Player otherPlayer : room.players) {
+                                        if (otherPlayer.health > 0) {
+                                            winner = otherPlayer.id;
+                                            break;
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
+                            
+                            if (gameEnded && winner != null) {
+                                System.out.println("GAME OVER! Winner: " + winner);
+                               
+                                for (Player p : room.players) {
+                                    String result = p.id.equals(winner) ? "WIN" : "LOSE";
+                                    server.sendMessageToClient(p.id, 
+                                        new NetworkMessage(NetworkMessage.MessageType.GAME_OVER,
+                                                p.id, currentRoomId, result));
+                                }
+                                room.roomState = GameRoom.RoomState.GAME_ENDED;
+                            } else {
+                                System.out.println("3. Broadcasting ROOM_UPDATE with health and scores...");
+                                GameRoom roomCopy = new GameRoom(room);
+                                server.broadcastToRoom(currentRoomId,
+                                        new NetworkMessage(NetworkMessage.MessageType.ROOM_UPDATE,
+                                                null, currentRoomId, roomCopy));
+                            }
                             
                             System.out.println("=== ATTACK SEQUENCE COMPLETE ===");
                         }
@@ -297,6 +331,34 @@ public class ClientHandler implements Runnable {
                                         p.health = Math.max(0, p.health - 1);
                                         System.out.println("Legacy: Player " + p.name + " health reduced to: " + p.health);
                                     }
+                                }
+
+                        
+                                boolean gameEnded = false;
+                                String winner = null;
+                                for (Player p : room.players) {
+                                    if (p.health <= 0) {
+                                        gameEnded = true;
+                                        for (Player otherPlayer : room.players) {
+                                            if (otherPlayer.health > 0) {
+                                                winner = otherPlayer.id;
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    }
+                                }
+                                
+                                if (gameEnded && winner != null) {
+                                    System.out.println("LEGACY GAME OVER! Winner: " + winner);
+                                    for (Player p : room.players) {
+                                        String result = p.id.equals(winner) ? "WIN" : "LOSE";
+                                        server.sendMessageToClient(p.id, 
+                                            new NetworkMessage(NetworkMessage.MessageType.GAME_OVER,
+                                                    p.id, currentRoomId, result));
+                                    }
+                                    room.roomState = GameRoom.RoomState.GAME_ENDED;
+                                    return;
                                 }
 
                                 String newWord = server.getNextWord(room.currentWord);
@@ -344,38 +406,71 @@ public class ClientHandler implements Runnable {
 
     public void sendMessage(NetworkMessage message) {
         try {
-            if (output != null && isConnected) {
+            if (output != null && isConnected && !socket.isClosed()) {
                 output.writeObject(message);
                 output.flush();
             }
         } catch (IOException e) {
-            System.err.println("Error sending message: " + e.getMessage());
-            disconnect();
+            if (e.getMessage().contains("Broken pipe") || e.getMessage().contains("Connection reset")) {
+                System.err.println("Client connection lost (" + e.getMessage() + ") for player: " + 
+                                 (player != null ? player.name : "unknown"));
+            } else {
+                System.err.println("Error sending message: " + e.getMessage());
+            }
+          
+            isConnected = false;
         }
     }
 
     private void disconnect() {
-        if (player != null && currentRoomId != null) {
-            server.leaveRoom(currentRoomId, player.id);
-            server.broadcastToRoom(currentRoomId,
-                    new NetworkMessage(NetworkMessage.MessageType.PLAYER_LEAVE,
-                            player.id, currentRoomId, player));
-        }
-
-        if (player != null) {
-            server.removeClient(player.id);
-        }
-
         isConnected = false;
+        
         try {
-            if (socket != null)
+            if (player != null && currentRoomId != null) {
+                GameRoom room = server.getRoom(currentRoomId);
+                if (room != null) {
+                
+                    NetworkMessage disconnectMsg = new NetworkMessage(
+                        NetworkMessage.MessageType.PLAYER_DISCONNECTED,
+                        player.id,
+                        currentRoomId,
+                        player.name + " disconnected"
+                    );
+                    server.broadcastToRoom(currentRoomId, disconnectMsg);
+                    
+                  
+                    if (room.players.size() > 1) {
+                        server.leaveRoom(currentRoomId, player.id);
+                     
+                        GameRoom updatedRoom = server.getRoom(currentRoomId);
+                        if (updatedRoom != null) {
+                            server.broadcastToRoom(currentRoomId,
+                                    new NetworkMessage(NetworkMessage.MessageType.PLAYER_LEAVE,
+                                            player.id, currentRoomId, player));
+                        }
+                    } else {
+                      
+                        server.leaveRoom(currentRoomId, player.id);
+                    }
+                }
+            }
+
+            if (player != null) {
+                server.removeClient(player.id);
+            }
+        } catch (Exception e) {
+            System.err.println("Error during disconnect cleanup: " + e.getMessage());
+        }
+
+        try {
+            if (socket != null && !socket.isClosed())
                 socket.close();
             if (input != null)
                 input.close();
             if (output != null)
                 output.close();
         } catch (IOException e) {
-            System.err.println("Error closing connection: " + e.getMessage());
+
         }
     }
 }

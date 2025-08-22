@@ -66,16 +66,21 @@ public class TypingGameServer {
                     System.out.println("Room now has " + room.players.size() + "/" + room.maxPlayers + " players");
                     
                     if (room.isFull()) {
-                        System.out.println("Room is full! Starting countdown...");
-                        room.roomState = GameRoom.RoomState.COUNTDOWN;
-                        room.countdown = 10;
-                        room.countdownStartTime = System.currentTimeMillis();
+                        System.out.println("Room is full! Ready to start countdown...");
+                        room.roomState = GameRoom.RoomState.WAITING_FOR_HOST;
                         
                         for (Player player : room.players) {
                             broadcastToRoom(room.id, new NetworkMessage(
                                 NetworkMessage.MessageType.PLAYER_JOIN,
                                 null, room.id, player));
                         }
+                        
+                        System.out.println("Room ready - transitioning to WAITING_FOR_HOST state");
+                        
+                        System.out.println("Auto-starting countdown since room is full...");
+                        room.roomState = GameRoom.RoomState.COUNTDOWN;
+                        room.countdown = 10;
+                        room.countdownStartTime = System.currentTimeMillis();
                         
                         System.out.println("Broadcasting COUNTDOWN_START with initial countdown: " + room.countdown);
                         broadcastToRoom(room.id, new NetworkMessage(
@@ -121,8 +126,16 @@ public class TypingGameServer {
         GameRoom room = rooms.get(roomId);
         if (room != null) {
             room.removePlayer(playerId);
-            if (room.players.isEmpty()) {
+            
+            if (room.players.isEmpty() && 
+                room.roomState != GameRoom.RoomState.COUNTDOWN && 
+                room.roomState != GameRoom.RoomState.GAME_STARTED) {
                 rooms.remove(roomId);
+           
+                ScheduledFuture<?> task = countdownTasks.remove(roomId);
+                if (task != null) {
+                    task.cancel(false);
+                }
             }
         }
     }
@@ -156,17 +169,46 @@ public class TypingGameServer {
 
     public void broadcastToRoom(String roomId, NetworkMessage message) {
         GameRoom room = rooms.get(roomId);
-        if (room != null) {
+        if (room != null && message != null) {
             System.out.println("Broadcasting to room " + room.name + " with " + room.players.size() + " players");
             for (Player player : room.players) {
-                System.out.println("  Sending to player: " + player.name + " (ID: " + player.id + ")");
-                ClientHandler handler = clients.get(player.id);
-                if (handler != null) {
-                    handler.sendMessage(message);
+                if (player != null && player.id != null) {
+                    System.out.println("  Sending to player: " + player.name + " (ID: " + player.id + ")");
+                    ClientHandler handler = clients.get(player.id);
+                    if (handler != null) {
+                        try {
+                            handler.sendMessage(message);
+                        } catch (Exception e) {
+                            System.err.println("Error sending message to player " + player.name + ": " + e.getMessage());
+                            
+                            if (!message.type.toString().contains("GAME") && !message.type.toString().contains("COUNTDOWN")) {
+                                clients.remove(player.id);
+                            }
+                        }
+                    } else {
+                        System.out.println("  Warning: No handler found for player " + player.name);
+                    }
                 } else {
-                    System.out.println("  Warning: No handler found for player " + player.name);
+                    System.err.println("  Invalid player in room: " + player);
                 }
             }
+        } else {
+            System.err.println("Cannot broadcast - room or message is null. RoomId: " + roomId);
+        }
+    }
+
+    public void sendMessageToClient(String playerId, NetworkMessage message) {
+        ClientHandler handler = clients.get(playerId);
+        if (handler != null) {
+            try {
+                handler.sendMessage(message);
+                System.out.println("Sent message to player: " + playerId + ", Type: " + message.type);
+            } catch (Exception e) {
+                System.err.println("Error sending message to player " + playerId + ": " + e.getMessage());
+                clients.remove(playerId);
+            }
+        } else {
+            System.err.println("Cannot send message - no handler found for player: " + playerId);
         }
     }
 
@@ -185,46 +227,55 @@ public class TypingGameServer {
         }
         
         ScheduledFuture<?> countdownTask = countdownScheduler.scheduleAtFixedRate(() -> {
-            GameRoom room = rooms.get(roomId);
-            if (room != null && room.roomState == GameRoom.RoomState.COUNTDOWN) {
-                boolean gameStarted = room.updateCountdown();
+            try {
+                GameRoom room = rooms.get(roomId);
+                if (room != null && room.roomState == GameRoom.RoomState.COUNTDOWN) {
+                    boolean gameStarted = room.updateCountdown();
 
-                if (gameStarted) {
-                    System.out.println("Game starting in room " + room.name + "!");
-                    
+                    if (gameStarted) {
+                        System.out.println("Game starting in room " + room.name + "!");
+                        
 
-                    for (Player p : room.players) {
-                        p.wordsCompleted = 0;
-                        p.health = 5; // Reset to max health
-                        System.out.println("Reset player " + p.name + " score to 0 and health to 5");
+                        for (Player p : room.players) {
+                            p.wordsCompleted = 0;
+                            p.health = 5;
+                            System.out.println("Reset player " + p.name + " score to 0 and health to 5");
+                        }
+
+                        String firstWord = getNextWord();
+                        room.currentWord = firstWord;
+                        
+                        System.out.println("Starting game with word: " + firstWord);
+                        System.out.println("Broadcasting to " + room.players.size() + " players:");
+                        for (Player p : room.players) {
+                            System.out.println("  - " + p.name + " (ID: " + p.id + ") Score: " + p.wordsCompleted + " Health: " + p.health);
+                        }
+
+                        broadcastToRoom(roomId, new NetworkMessage(NetworkMessage.MessageType.GAME_START,
+                                null, roomId, firstWord));
+                        
+                        broadcastToRoom(roomId, new NetworkMessage(NetworkMessage.MessageType.ROOM_UPDATE,
+                                null, roomId, new GameRoom(room)));
+                        
+                        ScheduledFuture<?> taskToCancel = countdownTasks.remove(roomId);
+                        if (taskToCancel != null) {
+                            taskToCancel.cancel(false);
+                        }
+
+                    } else if (room.countdown > 0) {
+                        System.out.println("Room " + room.name + " countdown: " + room.countdown);
+                        broadcastToRoom(roomId, new NetworkMessage(NetworkMessage.MessageType.COUNTDOWN_UPDATE,
+                                null, roomId, room.countdown));
                     }
-
-                    String firstWord = getNextWord();
-                    room.currentWord = firstWord;
-                    
-                    System.out.println("Starting game with word: " + firstWord);
-                    System.out.println("Broadcasting to " + room.players.size() + " players:");
-                    for (Player p : room.players) {
-                        System.out.println("  - " + p.name + " (ID: " + p.id + ") Score: " + p.wordsCompleted + " Health: " + p.health);
-                    }
-
-                    broadcastToRoom(roomId, new NetworkMessage(NetworkMessage.MessageType.GAME_START,
-                            null, roomId, firstWord));
-                    
-                    broadcastToRoom(roomId, new NetworkMessage(NetworkMessage.MessageType.ROOM_UPDATE,
-                            null, roomId, new GameRoom(room)));
-                    
+                } else {
+                    System.out.println("Canceling countdown task for room " + roomId + " - room not found or not in countdown state");
                     ScheduledFuture<?> taskToCancel = countdownTasks.remove(roomId);
                     if (taskToCancel != null) {
                         taskToCancel.cancel(false);
                     }
-
-                } else if (room.countdown > 0) {
-                    System.out.println("Room " + room.name + " countdown: " + room.countdown);
-                    broadcastToRoom(roomId, new NetworkMessage(NetworkMessage.MessageType.COUNTDOWN_UPDATE,
-                            null, roomId, room.countdown));
                 }
-            } else {
+            } catch (Exception e) {
+                System.err.println("Error in countdown task for room " + roomId + ": " + e.getMessage());
                 ScheduledFuture<?> taskToCancel = countdownTasks.remove(roomId);
                 if (taskToCancel != null) {
                     taskToCancel.cancel(false);

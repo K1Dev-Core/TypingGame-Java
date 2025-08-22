@@ -27,6 +27,7 @@ public class Player implements Serializable {
     
     public Player(String id, String name, String selectedCharacterId) {
         this(id, name);
-        this.selectedCharacterId = selectedCharacterId;
+        this.selectedCharacterId = selectedCharacterId != null && !selectedCharacterId.trim().isEmpty() 
+                                 ? selectedCharacterId : "medieval_king";
     }
 }
