@@ -59,20 +59,18 @@ public class NetworkClient {
                     }
                     System.err.println("Skipping corrupted message and continuing...");
 
-                    // Log the error but don't break the connection for this type of error
                     continue;
                 } catch (StreamCorruptedException e) {
                     System.err.println("Stream corruption detected: " + e.getMessage());
                     System.err.println("This usually indicates a synchronization issue on the server.");
                     System.err.println("Attempting to recover...");
 
-                    // Try to reset the input stream if possible
                     try {
-                        Thread.sleep(100); // Wait a bit for server to stabilize
+                        Thread.sleep(100);
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
                     }
-                    break; // Break to trigger reconnection
+                    break;
                 } catch (EOFException e) {
                     System.err.println("Server closed connection unexpectedly: " + e.getMessage());
                     break;

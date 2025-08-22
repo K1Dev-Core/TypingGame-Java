@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class GameRoom implements Serializable {
+
     private static final long serialVersionUID = 2L;
 
     public enum RoomState {
@@ -44,7 +45,7 @@ public class GameRoom implements Serializable {
     public GameRoom(GameRoom other) {
         this.id = other.id;
         this.name = other.name;
-        
+
         this.players = new ArrayList<>();
         for (Player p : other.players) {
             Player playerCopy = new Player(p.id, p.name, p.selectedCharacterId);
@@ -55,19 +56,18 @@ public class GameRoom implements Serializable {
             playerCopy.isAlive = p.isAlive;
             this.players.add(playerCopy);
         }
-        
+
         if (other.host != null) {
             this.host = this.players.stream()
-                .filter(p -> p.id.equals(other.host.id))
-                .findFirst()
-                .orElse(null);
+                    .filter(p -> p.id.equals(other.host.id))
+                    .findFirst()
+                    .orElse(null);
         }
-        
+
         this.isGameStarted = other.isGameStarted;
-        // Ensure currentWord is always a valid String, never null or other object type
-        this.currentWord = (other.currentWord != null && other.currentWord instanceof String) 
-                          ? (String) other.currentWord 
-                          : "";
+        this.currentWord = (other.currentWord != null && other.currentWord instanceof String)
+                ? (String) other.currentWord
+                : "";
         this.gameStartTime = other.gameStartTime;
         this.maxPlayers = other.maxPlayers;
         this.roomState = other.roomState;
@@ -116,8 +116,9 @@ public class GameRoom implements Serializable {
     }
 
     public boolean updateCountdown() {
-        if (roomState != RoomState.COUNTDOWN)
+        if (roomState != RoomState.COUNTDOWN) {
             return false;
+        }
 
         long elapsed = System.currentTimeMillis() - countdownStartTime;
         int newCountdown = 10 - (int) (elapsed / 1000);

@@ -304,11 +304,13 @@ public class ClientHandler implements Runnable {
                                 }
                                 room.roomState = GameRoom.RoomState.GAME_ENDED;
                             } else {
-                                System.out.println("3. Broadcasting ROOM_UPDATE with health and scores...");
-                                GameRoom roomCopy = new GameRoom(room);
-                                server.broadcastToRoom(currentRoomId,
-                                        new NetworkMessage(NetworkMessage.MessageType.ROOM_UPDATE,
-                                                null, currentRoomId, roomCopy));
+                                System.out.println("3. Broadcasting simple health updates instead of complex GameRoom...");
+                                for (Player p : room.players) {
+                                    String healthUpdate = p.id + "|" + p.health + "|" + p.wordsCompleted + "|" + p.name;
+                                    server.broadcastToRoom(currentRoomId,
+                                            new NetworkMessage(NetworkMessage.MessageType.PLAYER_PROGRESS,
+                                                    p.id, currentRoomId, healthUpdate));
+                                }
                             }
 
                             System.out.println("=== ATTACK SEQUENCE COMPLETE ===");
@@ -367,10 +369,12 @@ public class ClientHandler implements Runnable {
                                 server.broadcastToRoom(currentRoomId,
                                         new NetworkMessage(NetworkMessage.MessageType.GAME_STATE_UPDATE,
                                                 null, currentRoomId, newWord));
-
-                                server.broadcastToRoom(currentRoomId,
-                                        new NetworkMessage(NetworkMessage.MessageType.ROOM_UPDATE,
-                                                null, currentRoomId, new GameRoom(room)));
+                                for (Player p : room.players) {
+                                    String healthUpdate = p.id + "|" + p.health + "|" + p.wordsCompleted + "|" + p.name;
+                                    server.broadcastToRoom(currentRoomId,
+                                            new NetworkMessage(NetworkMessage.MessageType.PLAYER_PROGRESS,
+                                                    p.id, currentRoomId, healthUpdate));
+                                }
                             }
                         }
                     }
@@ -405,7 +409,7 @@ public class ClientHandler implements Runnable {
             if (output != null && isConnected && !socket.isClosed()) {
                 output.writeObject(message);
                 output.flush();
-                // Small delay to prevent rapid successive writes causing corruption
+
                 try {
                     Thread.sleep(5);
                 } catch (InterruptedException e) {

@@ -414,16 +414,75 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
                 System.err.println("Received null GAME_START message or data");
                 return;
             }
-            
-            if (message.data instanceof String) {
-                String firstWord = (String) message.data;
 
+            if (message.data instanceof String) {
+                String gameStartData = (String) message.data;
+                String[] parts = gameStartData.split("\\|");
+
+                if (parts.length < 2) {
+                    System.err.println("Invalid game start data format: " + gameStartData);
+                    return;
+                }
+
+                String firstWord = parts[0];
                 if (firstWord == null || firstWord.trim().isEmpty()) {
                     System.err.println("Invalid first word received: " + firstWord);
                     return;
                 }
 
-                System.out.println("Processing GAME_START with word: " + firstWord);
+                int playerCount;
+                try {
+                    playerCount = Integer.parseInt(parts[1]);
+                    if (playerCount < 0 || playerCount > 10) {
+                        System.err.println("Invalid player count: " + playerCount + ". Using fallback.");
+                        playerCount = 2;
+                    }
+                } catch (NumberFormatException e) {
+                    System.err.println("Cannot parse player count '" + parts[1] + "' as integer. Data: " + gameStartData);
+                    System.err.println("This might be caused by Thai text in unexpected position. Using fallback.");
+                    playerCount = 2;
+                }
+
+                System.out.println("Processing GAME_START with word: " + firstWord + ", players: " + playerCount);
+
+                int dataIndex = 2;
+                for (int i = 0; i < playerCount && dataIndex + 3 < parts.length; i++) {
+                    try {
+                        String playerId = parts[dataIndex];
+                        String playerName = parts[dataIndex + 1];
+
+                        int health;
+                        int wordsCompleted;
+
+                        try {
+                            health = Integer.parseInt(parts[dataIndex + 2]);
+                        } catch (NumberFormatException e) {
+                            System.err.println("Cannot parse health '" + parts[dataIndex + 2] + "' for player " + playerName + ". Using default.");
+                            health = 5;
+                        }
+
+                        try {
+                            wordsCompleted = Integer.parseInt(parts[dataIndex + 3]);
+                        } catch (NumberFormatException e) {
+                            System.err.println("Cannot parse words completed '" + parts[dataIndex + 3] + "' for player " + playerName + ". Using default.");
+                            wordsCompleted = 0;
+                        }
+
+                        if (localPlayer != null && localPlayer.id.equals(playerId)) {
+                            localPlayer.health = health;
+                            localPlayer.wordsCompleted = wordsCompleted;
+                        } else if (opponent != null && opponent.id.equals(playerId)) {
+                            opponent.health = health;
+                            opponent.wordsCompleted = wordsCompleted;
+                        }
+
+                    } catch (Exception e) {
+                        System.err.println("Error parsing player data at index " + i + ": " + e.getMessage());
+                    }
+
+                    dataIndex += 4;
+                }
+
                 matchState = MatchState.RACING;
 
                 gameState.setMultiplayerMode(true);
@@ -469,17 +528,156 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
                 System.err.println("Invalid GAME_START message data type: "
                         + (message.data != null ? message.data.getClass().getName() : "null"));
                 System.err.println("Expected String, got: " + message.data);
+
+                System.err.println("Attempting fallback game start...");
+                startFallbackGame();
             }
         } catch (Exception e) {
             System.err.println("Error handling GAME_START message: " + e.getMessage());
             e.printStackTrace();
+
+            System.err.println("Exception occurred, attempting fallback game start...");
+            startFallbackGame();
+        }
+    }
+
+    private void startFallbackGame() {
+        try {
+            System.out.println("Starting fallback game...");
+
+            matchState = MatchState.RACING;
+            gameState.setMultiplayerMode(true);
+
+            String fallbackWord = "GAME";
+            gameState.setCurrentWord(fallbackWord);
+            gameState.playerIdx = 0;
+            gameState.setOpponentIdx(0);
+
+            if (localPlayer != null && localPlayer.name != null) {
+                gameState.setPlayerName(localPlayer.name);
+            }
+            if (opponent != null && opponent.name != null) {
+                gameState.setOpponentName(opponent.name);
+            }
+
+            gameState.playerHealth = GameConfig.MAX_HEALTH;
+            gameState.botHealth = GameConfig.MAX_HEALTH;
+            gameState.wordsCompleted = 0;
+
+            if (localPlayer != null) {
+                localPlayer.health = GameConfig.MAX_HEALTH;
+                localPlayer.wordsCompleted = 0;
+            }
+            if (opponent != null) {
+                opponent.health = GameConfig.MAX_HEALTH;
+                opponent.wordsCompleted = 0;
+            }
+
+            gameState.resetToReady();
+            gameState.startGame();
+            gameState.resetTypingProgress();
+
+            if (gamePanel != null) {
+                gamePanel.repaint();
+            }
+
+            NotificationSystem.showWarning("Game started with fallback settings. Type: " + fallbackWord);
+            System.out.println("Fallback game started successfully with word: " + fallbackWord);
+
+        } catch (Exception fallbackError) {
+            System.err.println("Fallback game start also failed: " + fallbackError.getMessage());
+            fallbackError.printStackTrace();
+
+            NotificationSystem.showError("Game start failed. Please try again.");
+            disconnect();
         }
     }
 
     private void handlePlayerProgress(NetworkMessage message) {
-        if (message.data instanceof Integer && !message.playerId.equals(localPlayer.id)) {
-            int opponentProgress = (Integer) message.data;
-            gameState.setOpponentIdx(opponentProgress);
+        try {
+            if (message.data instanceof Integer && !message.playerId.equals(localPlayer.id)) {
+
+                int opponentProgress = (Integer) message.data;
+                gameState.setOpponentIdx(opponentProgress);
+            } else if (message.data instanceof String) {
+
+                String healthData = (String) message.data;
+                String[] parts = healthData.split("\\|");
+
+                if (parts.length >= 4) {
+                    String playerId = parts[0];
+                    String playerName = parts[3];
+
+                    int health;
+                    int wordsCompleted;
+
+                    try {
+                        health = Integer.parseInt(parts[1]);
+                    } catch (NumberFormatException e) {
+                        System.err.println("Cannot parse health '" + parts[1] + "' for player " + playerName + ". Using current value.");
+                        health = (localPlayer != null && playerId.equals(localPlayer.id))
+                                ? gameState.playerHealth : gameState.botHealth;
+                    }
+
+                    try {
+                        wordsCompleted = Integer.parseInt(parts[2]);
+                    } catch (NumberFormatException e) {
+                        System.err.println("Cannot parse words completed '" + parts[2] + "' for player " + playerName + ". Using current value.");
+                        wordsCompleted = (localPlayer != null && playerId.equals(localPlayer.id))
+                                ? gameState.wordsCompleted : 0;
+                    }
+
+                    if (localPlayer != null && playerId.equals(localPlayer.id)) {
+
+                        int oldHealth = gameState.playerHealth;
+                        localPlayer.health = health;
+                        localPlayer.wordsCompleted = wordsCompleted;
+                        gameState.playerHealth = health;
+                        gameState.wordsCompleted = wordsCompleted;
+
+                        if (health < oldHealth) {
+                            gameState.playerTakingHit = true;
+                            gameState.playerHitUntil = System.currentTimeMillis() + 500;
+                        }
+                    } else {
+
+                        if (opponent == null) {
+                            opponent = new Player(playerId, playerName, "medieval_king");
+                            gameState.setOpponentName(playerName);
+
+                            CharacterConfig config = CharacterConfig.getInstance();
+                            CharacterPack opponentCharPack = config.createCharacterPack(
+                                    "medieval_king",
+                                    gameState.botBaseX,
+                                    gameState.groundY,
+                                    true
+                            );
+                            gameState.setOpponentCharacterPack(opponentCharPack);
+                            gameState.bot = opponentCharPack;
+                            gameState.opponent = opponentCharPack;
+                        }
+
+                        int oldHealth = gameState.botHealth;
+                        opponent.health = health;
+                        opponent.wordsCompleted = wordsCompleted;
+                        gameState.botHealth = health;
+
+                        if (health < oldHealth) {
+                            gameState.opponentTakingHit = true;
+                            gameState.opponentHitUntil = System.currentTimeMillis() + 500;
+                        }
+                    }
+
+                    if (gamePanel != null) {
+                        gamePanel.repaint();
+                    }
+                } else {
+                    System.err.println("Invalid player progress data format (expected 4+ parts): " + healthData);
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Error handling player progress: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 
@@ -559,106 +757,123 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
     }
 
     private void handleRoomUpdate(NetworkMessage message) {
-        if (message.data instanceof GameRoom) {
-            GameRoom room = (GameRoom) message.data;
+        try {
+            if (message.data instanceof GameRoom) {
+                GameRoom room = (GameRoom) message.data;
 
-            for (Player serverPlayer : room.players) {
-                if (serverPlayer.id.equals(localPlayer.id)) {
-                    int oldHealth = localPlayer.health;
-                    int oldGameHealth = gameState.playerHealth;
-                    int oldWords = localPlayer.wordsCompleted;
+                if (room == null || room.players == null) {
+                    System.err.println("Received corrupted GameRoom object - ignoring");
+                    return;
+                }
 
-                    localPlayer.health = serverPlayer.health;
-                    localPlayer.wordsCompleted = serverPlayer.wordsCompleted;
-
-                    if (gameState.playerHealth != serverPlayer.health) {
-                        gameState.playerHealth = serverPlayer.health;
-                        if (serverPlayer.health < oldGameHealth) {
-                            gameState.playerTakingHit = true;
-                            gameState.playerHitUntil = System.currentTimeMillis() + 500;
-                        }
+                for (Player serverPlayer : room.players) {
+                    if (serverPlayer == null || serverPlayer.id == null) {
+                        System.err.println("Corrupted player data in GameRoom - skipping");
+                        continue;
                     }
 
-                } else {
-                    if (opponent == null) {
-                        opponent = new Player(serverPlayer.id, serverPlayer.name, serverPlayer.selectedCharacterId);
-                        gameState.setOpponentName(opponent.name);
+                    if (serverPlayer.id.equals(localPlayer.id)) {
+                        int oldHealth = localPlayer.health;
+                        int oldGameHealth = gameState.playerHealth;
+                        int oldWords = localPlayer.wordsCompleted;
 
-                        if (opponent.selectedCharacterId != null) {
-                            CharacterConfig config = CharacterConfig.getInstance();
-                            CharacterPack opponentCharPack = config.createCharacterPack(
-                                    opponent.selectedCharacterId,
-                                    gameState.botBaseX,
-                                    gameState.groundY,
-                                    true
-                            );
-                            gameState.setOpponentCharacterPack(opponentCharPack);
-                            gameState.bot = opponentCharPack;
-                            gameState.opponent = opponentCharPack;
-                        } else {
-                            CharacterConfig config = CharacterConfig.getInstance();
-                            CharacterPack defaultCharPack = config.createCharacterPack(
-                                    "medieval_king",
-                                    gameState.botBaseX,
-                                    gameState.groundY,
-                                    true
-                            );
-                            gameState.setOpponentCharacterPack(defaultCharPack);
-                            gameState.bot = defaultCharPack;
-                            gameState.opponent = defaultCharPack;
+                        localPlayer.health = serverPlayer.health;
+                        localPlayer.wordsCompleted = serverPlayer.wordsCompleted;
+
+                        if (gameState.playerHealth != serverPlayer.health) {
+                            gameState.playerHealth = serverPlayer.health;
+                            if (serverPlayer.health < oldGameHealth) {
+                                gameState.playerTakingHit = true;
+                                gameState.playerHitUntil = System.currentTimeMillis() + 500;
+                            }
                         }
+
                     } else {
-                        int oldHealth = opponent.health;
-                        int oldBotHealth = gameState.botHealth;
-                        int oldWords = opponent.wordsCompleted;
+                        if (opponent == null) {
+                            opponent = new Player(serverPlayer.id, serverPlayer.name, serverPlayer.selectedCharacterId);
+                            gameState.setOpponentName(opponent.name);
 
-                        opponent.health = serverPlayer.health;
-                        opponent.wordsCompleted = serverPlayer.wordsCompleted;
-                        opponent.selectedCharacterId = serverPlayer.selectedCharacterId;
+                            if (opponent.selectedCharacterId != null) {
+                                CharacterConfig config = CharacterConfig.getInstance();
+                                CharacterPack opponentCharPack = config.createCharacterPack(
+                                        opponent.selectedCharacterId,
+                                        gameState.botBaseX,
+                                        gameState.groundY,
+                                        true
+                                );
+                                gameState.setOpponentCharacterPack(opponentCharPack);
+                                gameState.bot = opponentCharPack;
+                                gameState.opponent = opponentCharPack;
+                            } else {
+                                CharacterConfig config = CharacterConfig.getInstance();
+                                CharacterPack defaultCharPack = config.createCharacterPack(
+                                        "medieval_king",
+                                        gameState.botBaseX,
+                                        gameState.groundY,
+                                        true
+                                );
+                                gameState.setOpponentCharacterPack(defaultCharPack);
+                                gameState.bot = defaultCharPack;
+                                gameState.opponent = defaultCharPack;
+                            }
+                        } else {
+                            int oldHealth = opponent.health;
+                            int oldBotHealth = gameState.botHealth;
+                            int oldWords = opponent.wordsCompleted;
 
-                        if (gameState.botHealth != serverPlayer.health) {
-                            gameState.botHealth = serverPlayer.health;
-                            if (serverPlayer.health < oldBotHealth) {
-                                gameState.opponentTakingHit = true;
-                                gameState.opponentHitUntil = System.currentTimeMillis() + 500;
+                            opponent.health = serverPlayer.health;
+                            opponent.wordsCompleted = serverPlayer.wordsCompleted;
+                            opponent.selectedCharacterId = serverPlayer.selectedCharacterId;
+
+                            if (gameState.botHealth != serverPlayer.health) {
+                                gameState.botHealth = serverPlayer.health;
+                                if (serverPlayer.health < oldBotHealth) {
+                                    gameState.opponentTakingHit = true;
+                                    gameState.opponentHitUntil = System.currentTimeMillis() + 500;
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            if (gamePanel != null) {
-                gamePanel.repaint();
-            }
-
-            boolean validGameState = matchState == MatchState.RACING
-                    && gameState.playerHealth > 0 && gameState.botHealth > 0;
-
-            if (gameState.playerHealth <= 0 && validGameState) {
-                gameOverResult = "DEFEAT";
-                gameOverOverlayShowing = true;
-                gameOverOverlayStartTime = System.currentTimeMillis();
-                matchState = MatchState.FINISHED;
-                if (localPlayer != null) {
-                    String characterUsed = getCurrentSelectedCharacter();
-                    PlayerDatabase.saveOnlineMatchResult(localPlayer.name, false, characterUsed);
-                    PlayerDatabase.savePlayerScore(localPlayer.name, localPlayer.wordsCompleted, 0);
+                if (gamePanel != null) {
+                    gamePanel.repaint();
                 }
-                scheduleReturnToOnlineMode();
 
-            } else if (gameState.botHealth <= 0 && validGameState) {
-                gameOverResult = "VICTORY";
-                gameOverOverlayShowing = true;
-                gameOverOverlayStartTime = System.currentTimeMillis();
-                matchState = MatchState.FINISHED;
-                if (localPlayer != null) {
-                    String characterUsed = getCurrentSelectedCharacter();
-                    PlayerDatabase.saveOnlineMatchResult(localPlayer.name, true, characterUsed);
-                    PlayerDatabase.savePlayerScore(localPlayer.name, localPlayer.wordsCompleted, 0);
+                boolean validGameState = matchState == MatchState.RACING
+                        && gameState.playerHealth > 0 && gameState.botHealth > 0;
+
+                if (gameState.playerHealth <= 0 && validGameState) {
+                    gameOverResult = "DEFEAT";
+                    gameOverOverlayShowing = true;
+                    gameOverOverlayStartTime = System.currentTimeMillis();
+                    matchState = MatchState.FINISHED;
+                    if (localPlayer != null) {
+                        String characterUsed = getCurrentSelectedCharacter();
+                        PlayerDatabase.saveOnlineMatchResult(localPlayer.name, false, characterUsed);
+                        PlayerDatabase.savePlayerScore(localPlayer.name, localPlayer.wordsCompleted, 0);
+                    }
+                    scheduleReturnToOnlineMode();
+
+                } else if (gameState.botHealth <= 0 && validGameState) {
+                    gameOverResult = "VICTORY";
+                    gameOverOverlayShowing = true;
+                    gameOverOverlayStartTime = System.currentTimeMillis();
+                    matchState = MatchState.FINISHED;
+                    if (localPlayer != null) {
+                        String characterUsed = getCurrentSelectedCharacter();
+                        PlayerDatabase.saveOnlineMatchResult(localPlayer.name, true, characterUsed);
+                        PlayerDatabase.savePlayerScore(localPlayer.name, localPlayer.wordsCompleted, 0);
+                    }
+                    scheduleReturnToOnlineMode();
                 }
-                scheduleReturnToOnlineMode();
+            } else {
+                System.err.println("ROOM_UPDATE message contains non-GameRoom data: "
+                        + (message.data != null ? message.data.getClass().getName() : "null"));
             }
-
+        } catch (Exception e) {
+            System.err.println("Error handling ROOM_UPDATE: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 

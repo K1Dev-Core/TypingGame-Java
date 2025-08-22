@@ -173,7 +173,6 @@ public class TypingGameServer {
         if (room != null && message != null) {
             System.out.println("Broadcasting to room " + room.name + " with " + room.players.size() + " players");
 
-            // Send to each player sequentially to prevent serialization conflicts
             for (Player player : room.players) {
                 if (player != null && player.id != null) {
                     System.out.println("  Sending to player: " + player.name + " (ID: " + player.id + ")");
@@ -181,7 +180,6 @@ public class TypingGameServer {
                     if (handler != null) {
                         try {
                             handler.sendMessage(message);
-                            // Small delay to ensure message is fully transmitted
                             Thread.sleep(10);
                         } catch (InterruptedException ie) {
                             Thread.currentThread().interrupt();
@@ -251,15 +249,43 @@ public class TypingGameServer {
                         String firstWord = getNextWord();
                         room.currentWord = firstWord;
 
+                        if (firstWord == null || firstWord.trim().isEmpty() || firstWord.contains("|")) {
+                            System.err.println("Invalid word generated: " + firstWord + ". Using fallback.");
+                            firstWord = "GAME";
+                            room.currentWord = firstWord;
+                        }
+
                         System.out.println("Starting game with word: " + firstWord);
                         System.out.println("Broadcasting to " + room.players.size() + " players:");
                         for (Player p : room.players) {
                             System.out.println("  - " + p.name + " (ID: " + p.id + ") Score: " + p.wordsCompleted + " Health: " + p.health);
                         }
 
-                        // Send GAME_START message only - no ROOM_UPDATE needed during game start
+                        StringBuilder gameStartBuilder = new StringBuilder();
+                        gameStartBuilder.append(firstWord).append("|").append(room.players.size());
+
+                        for (Player p : room.players) {
+
+                            String safeName = (p.name != null) ? p.name.replace("|", "") : "Player";
+                            if (safeName.trim().isEmpty()) {
+                                safeName = "Player";
+                            }
+
+                            gameStartBuilder.append("|")
+                                    .append(p.id != null ? p.id : "unknown")
+                                    .append("|")
+                                    .append(safeName)
+                                    .append("|")
+                                    .append(p.health)
+                                    .append("|")
+                                    .append(p.wordsCompleted);
+                        }
+
+                        String gameStartData = gameStartBuilder.toString();
+                        System.out.println("Game start data: " + gameStartData);
+
                         broadcastToRoom(roomId, new NetworkMessage(NetworkMessage.MessageType.GAME_START,
-                                null, roomId, firstWord));
+                                null, roomId, gameStartData));
 
                         ScheduledFuture<?> taskToCancel = countdownTasks.remove(roomId);
                         if (taskToCancel != null) {
