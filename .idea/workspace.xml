@@ -5,12 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="8c7691ea-4ece-4811-841b-6a6a7a07c896" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/GamePanel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/GamePanel.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/GameRenderer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/GameRenderer.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/GameState.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/GameState.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/InputHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/InputHandler.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/UISettings.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/UISettings.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/player_scores.txt" beforeDir="false" afterPath="$PROJECT_DIR$/player_scores.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/OnlineMatchManager.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/OnlineMatchManager.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/server/ClientHandler.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/server/ClientHandler.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -35,21 +33,23 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;Application.App.executor&quot;: &quot;Run&quot;,
-    &quot;Application.Run.executor&quot;: &quot;Run&quot;,
-    &quot;Application.SlowTTS.executor&quot;: &quot;Run&quot;,
-    &quot;Application.SystemTTS.executor&quot;: &quot;Run&quot;,
-    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;dev-hex&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/Users/k1god/Documents/TypingGame-Java-v/res/characters/Wizard&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Application.App.executor": "Run",
+    "Application.Run.executor": "Run",
+    "Application.Run2.executor": "Run",
+    "Application.ServerLauncher.executor": "Run",
+    "Application.SlowTTS.executor": "Run",
+    "Application.SystemTTS.executor": "Run",
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "git-widget-placeholder": "dev-hex",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "/Users/k1god/Documents/TypingGame-Java-v/res/characters/Wizard"
   }
-}</component>
+}]]></component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="$PROJECT_DIR$/res/characters/Wizard" />
@@ -65,7 +65,7 @@
       <recent name="$PROJECT_DIR$/res/characters/Mushroom" />
     </key>
   </component>
-  <component name="RunManager" selected="Application.Run">
+  <component name="RunManager" selected="Application.Run2">
     <configuration name="Run" type="Application" factoryName="Application">
       <option name="MAIN_CLASS_NAME" value="App" />
       <module name="TypingGame-Java-v" />

@@ -52,18 +52,25 @@ public class OnlineUI {
                     
                     PlayerDatabase.recordOnlineLogin(name);
                     
+                    
+                    OnlineMatchManager manager = OnlineMatchManager.getInstance();
+                    if (!manager.isConnected()) {
+                        manager.connectToServer();
+                        NotificationSystem.showInfo("Connecting to online server...");
+                    }
+                    
                     PlayerDatabase.PlayerRecord record = PlayerDatabase.getPlayerRecord(name);
                     if (record != null) {
                         double winRate = record.getWinRate() * 100;
                         int totalMatches = record.onlineWins + record.onlineLosses;
                         String statsMessage = String.format(
-                            "Welcome %s! Stats: Logins: %d | Score: %d | WPM: %d | Matches: %d | Win Rate: %.1f%% | Character: %s",
+                            "Welcome %s! Online Stats: Logins: %d | Score: %d | WPM: %d | Matches: %d | Win Rate: %.1f%% | Character: %s",
                             name, record.onlineLogins, record.bestScore, record.bestWPM, 
                             totalMatches, winRate, record.favoriteCharacter.replace("_", " ")
                         );
                         NotificationSystem.showSuccess(statsMessage);
                     } else {
-                        NotificationSystem.showSuccess("Welcome new player " + name + "! Click + to find your first match!");
+                        NotificationSystem.showSuccess("Welcome new player " + name + "! Connected online - Click + to find your first match!");
                     }
                 } else {
                     NotificationSystem.showWarning("Please enter a valid name");
@@ -90,6 +97,12 @@ public class OnlineUI {
     public static void renderOnlineUI(Graphics2D g2, int screenWidth, int screenHeight) {
         OnlineMatchManager manager = OnlineMatchManager.getInstance();
         OnlineMatchManager.MatchState state = manager.getMatchState();
+        
+        
+        long now = System.currentTimeMillis();
+        if (now % 2000 < 50) { // Print every 2 seconds briefly
+            System.out.println("UI State: " + state + ", Countdown: " + manager.getCurrentCountdown());
+        }
         
         switch (state) {
             case OFFLINE:
@@ -149,46 +162,42 @@ public class OnlineUI {
         int x = (screenWidth - panelWidth) / 2;
         int y = (screenHeight - panelHeight) / 2;
         
-        RoundRectangle2D panel = new RoundRectangle2D.Float(x, y, panelWidth, panelHeight, 15, 15);
-        g2.setColor(new Color(0, 0, 0, 220));
+        RoundRectangle2D panel = new RoundRectangle2D.Float(x, y, panelWidth, panelHeight, 10, 10);
+        g2.setColor(new Color(20, 20, 20, 250));
         g2.fill(panel);
         
-        g2.setColor(new Color(25, 118, 210, 150));
-        g2.setStroke(new BasicStroke(3));
+        g2.setColor(new Color(80, 80, 80));
+        g2.setStroke(new BasicStroke(2));
         g2.draw(panel);
         
-        g2.setColor(Color.WHITE);
-        g2.setStroke(new BasicStroke(1));
-        g2.draw(panel);
-        
-        Font titleFont = new Font("Arial", Font.BOLD, 18);
+        Font titleFont = new Font("Arial", Font.BOLD, 16);
         g2.setFont(titleFont);
-        g2.setColor(new Color(255, 255, 100));
-        String title = "Enter Your Player Name";
+        g2.setColor(Color.WHITE);
+        String title = "Enter Player Name";
         FontMetrics titleFm = g2.getFontMetrics();
         int titleX = x + (panelWidth - titleFm.stringWidth(title)) / 2;
-        g2.drawString(title, titleX, y + 35);
+        g2.drawString(title, titleX, y + 30);
         
         int fieldWidth = 250;
         int fieldHeight = 30;
         int fieldX = x + (panelWidth - fieldWidth) / 2;
-        int fieldY = y + 55;
+        int fieldY = y + 50;
         
-        g2.setColor(new Color(30, 30, 30));
+        g2.setColor(new Color(40, 40, 40));
         g2.fillRoundRect(fieldX, fieldY, fieldWidth, fieldHeight, 5, 5);
         
-        g2.setColor(new Color(25, 118, 210));
-        g2.setStroke(new BasicStroke(2));
+        g2.setColor(new Color(120, 120, 120));
+        g2.setStroke(new BasicStroke(1));
         g2.drawRoundRect(fieldX, fieldY, fieldWidth, fieldHeight, 5, 5);
         
-        Font inputFont = new Font("Arial", Font.BOLD, 16);
+        Font inputFont = new Font("Arial", Font.PLAIN, 14);
         g2.setFont(inputFont);
         g2.setColor(Color.WHITE);
         
         String displayText = nameBuffer.toString();
         if (displayText.isEmpty()) {
-            g2.setColor(new Color(150, 150, 150));
-            g2.drawString("Type your name here...", fieldX + 10, fieldY + 20);
+            g2.setColor(new Color(120, 120, 120));
+            g2.drawString("Type your name...", fieldX + 10, fieldY + 20);
         } else {
             g2.drawString(displayText, fieldX + 10, fieldY + 20);
         }
@@ -199,13 +208,13 @@ public class OnlineUI {
             g2.drawLine(cursorX, fieldY + 8, cursorX, fieldY + 22);
         }
         
-        Font instrFont = new Font("Arial", Font.PLAIN, 13);
+        Font instrFont = new Font("Arial", Font.PLAIN, 12);
         g2.setFont(instrFont);
-        g2.setColor(new Color(200, 200, 200));
+        g2.setColor(new Color(160, 160, 160));
         
         String[] instructions = {
             "Press ENTER to confirm",
-            "Press ESC to cancel"
+            "Press E to cancel"
         };
         
         for (int i = 0; i < instructions.length; i++) {
@@ -214,66 +223,62 @@ public class OnlineUI {
             g2.drawString(instructions[i], instrX, y + panelHeight - 30 + (i * 15));
         }
         
-        g2.setColor(new Color(150, 150, 150));
+        g2.setColor(new Color(120, 120, 120));
         String countText = nameBuffer.length() + "/20";
         FontMetrics countFm = g2.getFontMetrics();
         g2.drawString(countText, fieldX + fieldWidth - countFm.stringWidth(countText) - 5, fieldY - 5);
     }
     
     private static void renderExitConfirmation(Graphics2D g2, int screenWidth, int screenHeight) {
-        int panelWidth = 400;
-        int panelHeight = 180;
+        int panelWidth = 380;
+        int panelHeight = 160;
         int x = (screenWidth - panelWidth) / 2;
         int y = (screenHeight - panelHeight) / 2;
         
-        RoundRectangle2D panel = new RoundRectangle2D.Float(x, y, panelWidth, panelHeight, 15, 15);
-        g2.setColor(new Color(0, 0, 0, 240));
+        RoundRectangle2D panel = new RoundRectangle2D.Float(x, y, panelWidth, panelHeight, 10, 10);
+        g2.setColor(new Color(20, 20, 20, 250));
         g2.fill(panel);
         
-        g2.setColor(new Color(220, 50, 50, 150));
-        g2.setStroke(new BasicStroke(3));
+        g2.setColor(new Color(80, 80, 80));
+        g2.setStroke(new BasicStroke(2));
         g2.draw(panel);
         
-        g2.setColor(Color.WHITE);
-        g2.setStroke(new BasicStroke(1));
-        g2.draw(panel);
-        
-        Font titleFont = new Font("Arial", Font.BOLD, 20);
+        Font titleFont = new Font("Arial", Font.BOLD, 18);
         g2.setFont(titleFont);
-        g2.setColor(new Color(255, 200, 200));
+        g2.setColor(Color.WHITE);
         String title = "Exit Online Mode?";
         FontMetrics titleFm = g2.getFontMetrics();
         int titleX = x + (panelWidth - titleFm.stringWidth(title)) / 2;
-        g2.drawString(title, titleX, y + 40);
+        g2.drawString(title, titleX, y + 35);
         
         Font msgFont = new Font("Arial", Font.PLAIN, 14);
         g2.setFont(msgFont);
-        g2.setColor(new Color(200, 200, 200));
+        g2.setColor(new Color(180, 180, 180));
         String message = "Are you sure you want to exit online mode?";
         FontMetrics msgFm = g2.getFontMetrics();
         int msgX = x + (panelWidth - msgFm.stringWidth(message)) / 2;
-        g2.drawString(message, msgX, y + 75);
+        g2.drawString(message, msgX, y + 65);
         
-        int buttonWidth = 100;
-        int buttonHeight = 35;
-        int buttonY = y + 105;
+        int buttonWidth = 80;
+        int buttonHeight = 30;
+        int buttonY = y + 85;
         int yesX = x + (panelWidth / 2) - buttonWidth - 10;
         int noX = x + (panelWidth / 2) + 10;
         
-        RoundRectangle2D yesButton = new RoundRectangle2D.Float(yesX, buttonY, buttonWidth, buttonHeight, 8, 8);
-        g2.setColor(new Color(220, 50, 50, 180));
+        RoundRectangle2D yesButton = new RoundRectangle2D.Float(yesX, buttonY, buttonWidth, buttonHeight, 5, 5);
+        g2.setColor(new Color(60, 60, 60));
         g2.fill(yesButton);
-        g2.setColor(new Color(255, 100, 100));
-        g2.setStroke(new BasicStroke(2));
+        g2.setColor(new Color(140, 140, 140));
+        g2.setStroke(new BasicStroke(1));
         g2.draw(yesButton);
         
-        RoundRectangle2D noButton = new RoundRectangle2D.Float(noX, buttonY, buttonWidth, buttonHeight, 8, 8);
-        g2.setColor(new Color(50, 150, 50, 180));
+        RoundRectangle2D noButton = new RoundRectangle2D.Float(noX, buttonY, buttonWidth, buttonHeight, 5, 5);
+        g2.setColor(new Color(60, 60, 60));
         g2.fill(noButton);
-        g2.setColor(new Color(100, 200, 100));
+        g2.setColor(new Color(140, 140, 140));
         g2.draw(noButton);
         
-        Font buttonFont = new Font("Arial", Font.BOLD, 14);
+        Font buttonFont = new Font("Arial", Font.BOLD, 13);
         g2.setFont(buttonFont);
         g2.setColor(Color.WHITE);
         
@@ -288,13 +293,13 @@ public class OnlineUI {
         int noTextY = buttonY + (buttonHeight + fm.getAscent()) / 2 - 2;
         g2.drawString(noText, noTextX, noTextY);
         
-        Font instrFont = new Font("Arial", Font.PLAIN, 12);
+        Font instrFont = new Font("Arial", Font.PLAIN, 11);
         g2.setFont(instrFont);
-        g2.setColor(new Color(180, 180, 180));
-        String instr = "Press Y for Yes, N for No, or ESC to cancel";
+        g2.setColor(new Color(140, 140, 140));
+        String instr = "Press Y for Yes, N for No";
         FontMetrics instrFm = g2.getFontMetrics();
         int instrX = x + (panelWidth - instrFm.stringWidth(instr)) / 2;
-        g2.drawString(instr, instrX, y + panelHeight - 20);
+        g2.drawString(instr, instrX, y + panelHeight - 15);
     }
     
     private static void renderStatus(Graphics2D g2, int screenWidth, int screenHeight, String message, Color color) {
@@ -359,14 +364,14 @@ public class OnlineUI {
     }
     
     private static boolean handleExitConfirmationClick(int x, int y, int screenWidth, int screenHeight) {
-        int panelWidth = 400;
-        int panelHeight = 180;
+        int panelWidth = 380;
+        int panelHeight = 160;
         int panelX = (screenWidth - panelWidth) / 2;
         int panelY = (screenHeight - panelHeight) / 2;
         
-        int buttonWidth = 100;
-        int buttonHeight = 35;
-        int buttonY = panelY + 105;
+        int buttonWidth = 80;
+        int buttonHeight = 30;
+        int buttonY = panelY + 85;
         int yesX = panelX + (panelWidth / 2) - buttonWidth - 10;
         int noX = panelX + (panelWidth / 2) + 10;
         
@@ -515,138 +520,47 @@ public class OnlineUI {
         int countdown = manager.getCurrentCountdown();
         long countdownStartTime = manager.getCountdownStartTime();
         
-        long elapsed = System.currentTimeMillis() - countdownStartTime;
-        double exactCountdown = Math.max(0, 10.0 - (elapsed / 1000.0));
-        
-        long time = System.currentTimeMillis();
-        
-        g2.setColor(new Color(0, 0, 0, 200));
+        g2.setColor(new Color(0, 0, 0, 150));
         g2.fillRect(0, 0, screenWidth, screenHeight);
         
-        if (exactCountdown > 0) {
-            int currentNum = (int)Math.ceil(exactCountdown);
-            
-            Color numberColor;
-            Color glowColor;
-            if (currentNum >= 8) {
-                numberColor = new Color(100, 255, 100);
-                glowColor = new Color(50, 200, 50);
-            } else if (currentNum >= 5) {
-                numberColor = new Color(255, 255, 100);
-                glowColor = new Color(200, 200, 50);
-            } else if (currentNum >= 3) {
-                numberColor = new Color(255, 150, 50);
-                glowColor = new Color(200, 100, 25);
-            } else {
-                numberColor = new Color(255, 50, 50);
-                glowColor = new Color(200, 25, 25);
-            }
-            
-            double timeInSecond = exactCountdown - Math.floor(exactCountdown);
-            double entranceScale = 1.0;
-            if (timeInSecond > 0.85) {
-                entranceScale = (1.0 - timeInSecond) * 6.67;
-                entranceScale = Math.min(1.0, entranceScale);
-            }
-            
-            double pulseScale = 1.0 + 0.15 * Math.sin(time * 0.015);
-            int fontSize = (int)(300 * entranceScale * pulseScale);
-            Font countdownFont = new Font("Arial", Font.BOLD, fontSize);
+
+        if (countdown > 0) {
+
+            Font countdownFont = new Font("Arial", Font.BOLD, 120);
             g2.setFont(countdownFont);
             
-            String countText = String.valueOf(currentNum);
+            String countText = String.valueOf(countdown);
             FontMetrics fm = g2.getFontMetrics();
             int x = (screenWidth - fm.stringWidth(countText)) / 2;
             int y = screenHeight / 2 + fm.getAscent() / 2;
             
-            int circleSize = (int)(500 * entranceScale * pulseScale);
-            int circleX = screenWidth / 2 - circleSize / 2;
-            int circleY = screenHeight / 2 - circleSize / 2;
-            
-            for (int i = 0; i < 8; i++) {
-                int glowSize = circleSize + (i * 60);
-                int glowX = screenWidth / 2 - glowSize / 2;
-                int glowY = screenHeight / 2 - glowSize / 2;
-                int alpha = Math.max(5, 50 - i * 6);
-                g2.setColor(new Color(glowColor.getRed(), glowColor.getGreen(), glowColor.getBlue(), alpha));
-                g2.fillOval(glowX, glowY, glowSize, glowSize);
-            }
-            
-            g2.setColor(new Color(0, 0, 0, 180));
-            g2.fillOval(circleX, circleY, circleSize, circleSize);
-            
-            double borderPulse = 1.0 + 0.4 * Math.sin(time * 0.025);
-            g2.setColor(numberColor);
-            g2.setStroke(new BasicStroke((int)(12 * borderPulse)));
-            g2.drawOval(circleX, circleY, circleSize, circleSize);
-            
-            for (int i = 20; i >= 0; i -= 3) {
-                int shadowAlpha = Math.max(10, 100 - i * 4);
-                g2.setColor(new Color(0, 0, 0, shadowAlpha));
-                g2.drawString(countText, x + i, y + i);
-            }
-            
-            g2.setColor(numberColor);
+
+            g2.setColor(Color.WHITE);
             g2.drawString(countText, x, y);
             
-            for (int i = 0; i < 12; i++) {
-                double angle = (time * 0.008 + i * Math.PI / 6) % (2 * Math.PI);
-                int sparkleX = (int)(screenWidth / 2 + Math.cos(angle) * (circleSize * 0.7));
-                int sparkleY = (int)(screenHeight / 2 + Math.sin(angle) * (circleSize * 0.7));
-                g2.setColor(new Color(255, 255, 255, 200));
-                g2.fillOval(sparkleX - 6, sparkleY - 6, 12, 12);
-            }
-            
-            String titleText = "MATCH STARTING";
-            Font titleFont = new Font("Arial", Font.BOLD, 48);
+
+            Font titleFont = new Font("Arial", Font.BOLD, 24);
             g2.setFont(titleFont);
+            String titleText = "Match Starting";
             FontMetrics titleFm = g2.getFontMetrics();
             int titleX = (screenWidth - titleFm.stringWidth(titleText)) / 2;
-            int titleY = screenHeight / 2 - circleSize / 2 - 60;
+            int titleY = y - 80;
             
-            g2.setColor(new Color(0, 0, 0, 150));
-            g2.drawString(titleText, titleX + 3, titleY + 3);
-            g2.setColor(new Color(255, 255, 255, 220));
+            g2.setColor(Color.LIGHT_GRAY);
             g2.drawString(titleText, titleX, titleY);
             
         } else {
-            Font fightFont = new Font("Arial", Font.BOLD, 150);
+
+            Font fightFont = new Font("Arial", Font.BOLD, 80);
             g2.setFont(fightFont);
             
             String fightText = "FIGHT!";
             FontMetrics fightFm = g2.getFontMetrics();
+            int fightX = (screenWidth - fightFm.stringWidth(fightText)) / 2;
+            int fightY = screenHeight / 2;
             
-            int shakeX = (int)(8 * Math.sin(time * 0.15));
-            int shakeY = (int)(6 * Math.cos(time * 0.18));
-            
-            int fightX = (screenWidth - fightFm.stringWidth(fightText)) / 2 + shakeX;
-            int fightY = screenHeight / 2 + shakeY;
-            
-            g2.setColor(new Color(255, 0, 0, 150));
-            g2.fillRect(0, 0, screenWidth, screenHeight);
-            
-            for (int dx = -6; dx <= 6; dx++) {
-                for (int dy = -6; dy <= 6; dy++) {
-                    if (dx != 0 || dy != 0) {
-                        g2.setColor(new Color(0, 0, 0, 80));
-                        g2.drawString(fightText, fightX + dx, fightY + dy);
-                    }
-                }
-            }
-            
-            g2.setColor(new Color(255, 255, 100));
+            g2.setColor(Color.WHITE);
             g2.drawString(fightText, fightX, fightY);
-            
-            g2.setStroke(new BasicStroke(4));
-            g2.setColor(new Color(255, 255, 255, 250));
-            for (int i = 0; i < 16; i++) {
-                double angle = i * Math.PI / 8;
-                int x1 = screenWidth / 2;
-                int y1 = screenHeight / 2;
-                int x2 = x1 + (int)(Math.cos(angle) * 400);
-                int y2 = y1 + (int)(Math.sin(angle) * 400);
-                g2.drawLine(x1, y1, x2, y2);
-            }
         }
     }
     
@@ -663,15 +577,14 @@ public class OnlineUI {
         
         if (alpha <= 0) return;
         
-        // Simple dark background
         g2.setColor(new Color(0, 0, 0, (int)(180 * alpha)));
         g2.fillRect(0, 0, screenWidth, screenHeight);
         
-        // Determine colors
+
         boolean isVictory = "VICTORY".equals(result);
         Color textColor = isVictory ? new Color(100, 255, 100) : new Color(255, 100, 100);
         
-        // Simple text display
+
         Font resultFont = new Font("Arial", Font.BOLD, 80);
         g2.setFont(resultFont);
         
@@ -680,7 +593,7 @@ public class OnlineUI {
         int textX = (screenWidth - fm.stringWidth(resultText)) / 2;
         int textY = screenHeight / 2;
         
-        // Simple text with transparency
+
         g2.setColor(new Color(textColor.getRed(), textColor.getGreen(), textColor.getBlue(), (int)(255 * alpha)));
         g2.drawString(resultText, textX, textY);
     }

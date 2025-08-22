@@ -212,18 +212,22 @@ public class InputHandler implements KeyListener, MouseListener {
             gameState.lastPressAt[code] = now;
         }
 
-        if (code == KeyEvent.VK_ESCAPE) {
+        if (code == KeyEvent.VK_E) {
             if (OnlineUI.isShowingExitConfirmation()) {
                 OnlineUI.handleExitConfirmationKey((char) 27);
                 gamePanel.repaint();
                 return;
             }
             
-            if (OnlineMatchManager.getInstance().isOnline()) {
+            if (OnlineMatchManager.getInstance().isOnline() && gameState.state == GameConfig.State.READY) {
                 OnlineUI.showExitConfirmation();
                 gamePanel.repaint();
                 return;
-            } else {
+            }
+        }
+        
+        if (code == KeyEvent.VK_ESCAPE) {
+            if (!OnlineMatchManager.getInstance().isOnline()) {
                 uiSettings.showSettings = !uiSettings.showSettings;
                 gamePanel.repaint();
                 return;
@@ -336,7 +340,7 @@ public class InputHandler implements KeyListener, MouseListener {
             return;
         }
         
-        if (code == KeyEvent.VK_ESCAPE) {
+        if (code == KeyEvent.VK_E) {
             OnlineUI.exitOnlineMode();
             gamePanel.repaint();
             return;
@@ -359,7 +363,7 @@ public class InputHandler implements KeyListener, MouseListener {
     }
 
     private void handleReadyStateKeyPress(int code) {
-        if (code == KeyEvent.VK_ESCAPE && OnlineMatchManager.getInstance().isOnline()) {
+        if (code == KeyEvent.VK_E && OnlineMatchManager.getInstance().isOnline()) {
             OnlineUI.exitOnlineMode();
             gamePanel.repaint();
             return;
@@ -388,14 +392,14 @@ public class InputHandler implements KeyListener, MouseListener {
             return;
         }
 
-        if (code == KeyEvent.VK_LEFT) {
+        if (code == KeyEvent.VK_LEFT && !OnlineMatchManager.getInstance().isOnline()) {
             animController.cycleCharacter(-1);
             uiSettings.arrowLeftFrame = uiSettings.arrowLeftPressed;
             gamePanel.repaint();
             return;
         }
 
-        if (code == KeyEvent.VK_RIGHT) {
+        if (code == KeyEvent.VK_RIGHT && !OnlineMatchManager.getInstance().isOnline()) {
             animController.cycleCharacter(+1);
             uiSettings.arrowRightFrame = uiSettings.arrowRightPressed;
             gamePanel.repaint();
@@ -417,13 +421,13 @@ public class InputHandler implements KeyListener, MouseListener {
             return;
         }
 
-        if (code == KeyEvent.VK_LEFT) {
+        if (code == KeyEvent.VK_LEFT && !OnlineMatchManager.getInstance().isOnline()) {
             animController.cycleCharacter(-1);
             gamePanel.repaint();
             return;
         }
 
-        if (code == KeyEvent.VK_RIGHT) {
+        if (code == KeyEvent.VK_RIGHT && !OnlineMatchManager.getInstance().isOnline()) {
             animController.cycleCharacter(+1);
             gamePanel.repaint();
             return;

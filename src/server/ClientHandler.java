@@ -150,13 +150,21 @@ public class ClientHandler implements Runnable {
                     if (room != null && room.isFull()) {
                         System.out.println("Room is now full! Starting countdown...");
                         
+
+                        room.roomState = GameRoom.RoomState.COUNTDOWN;
+                        room.countdown = 10;
+                        room.countdownStartTime = System.currentTimeMillis();
+                        
+
+                        room.startCountdown();
+                        
                         for (Player roomPlayer : room.players) {
                             server.broadcastToRoom(roomId,
                                 new NetworkMessage(NetworkMessage.MessageType.PLAYER_JOIN,
                                     null, roomId, roomPlayer));
                         }
                         
-                        // Broadcast countdown start message
+
                         server.broadcastToRoom(roomId, new NetworkMessage(
                             NetworkMessage.MessageType.COUNTDOWN_START,
                             null, roomId, room.countdown));

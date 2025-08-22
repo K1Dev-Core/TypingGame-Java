@@ -90,12 +90,12 @@ public class GameRenderer {
         if (gameState.state == GameConfig.State.PLAYING) {
             if (OnlineMatchManager.getInstance().isRacing()) {
                 OnlineHUD.renderOnlineHUD(g2, gameState, uiSettings, gamePanel.getWidth(), gamePanel.getHeight());
-            } else {
+            } else if (!OnlineMatchManager.getInstance().isOnline()) {
+
                 drawGameHUD(g2, mm, ss, wpm, acc);
                 drawHealthBars(g2);
             }
         }
-
       
     }
 
@@ -249,19 +249,32 @@ public class GameRenderer {
     }
 
     private void drawFooterInfo(Graphics2D g2) {
+        OnlineMatchManager manager = OnlineMatchManager.getInstance();
+        boolean isOnline = manager.isOnline();
+        
         if (gameState.state == GameConfig.State.READY) {
-            if (!OnlineMatchManager.getInstance().isOnline()) {
+            if (!isOnline) {
                 drawSpacePrompt(g2, "กด ", " เพื่อเริ่มเกม");
+                drawTabPrompt(g2, "กด ", " เพื่อเปิดโหมดออนไลน์");
+            } else {
+                drawEPrompt(g2, "กด E ", "เพื่อกลับหน้าหลัก");
             }
-
-            drawArrowPrompt(g2, "กด ", " เพื่อเลือกตัวละคร");
-            drawBackspacePrompt(g2, "กด ", " เพื่อตั้งค่า");
-        } else if (gameState.state == GameConfig.State.GAMEOVER) {
-            drawSpacePrompt(g2, "กด ", " เพื่อเริ่มใหม่");
-            drawArrowPrompt(g2, "กด ", " เพื่อเลือกตัวละคร");
-            drawBackspacePrompt(g2, "กด ", " เพื่อตั้งค่า");
             
-            OnlineMatchManager manager = OnlineMatchManager.getInstance();
+
+            if (!isOnline || (isOnline && OnlineUI.getPlayerName() == null)) {
+                drawArrowPrompt(g2, "กด ", " เพื่อเลือกตัวละคร");
+                drawBackspacePrompt(g2, "กด ", " เพื่อตั้งค่า");
+            }
+        } else if (gameState.state == GameConfig.State.GAMEOVER) {
+            if (!isOnline) {
+                drawSpacePrompt(g2, "กด ", " เพื่อเริ่มใหม่");
+                drawArrowPrompt(g2, "กด ", " เพื่อเลือกตัวละคร");
+                drawBackspacePrompt(g2, "กด ", " เพื่อตั้งค่า");
+            } else {
+                drawEPrompt(g2, "กด E ", "เพื่อกลับหน้าหลัก");
+            }
+            
+
             if (manager.getLocalPlayer() != null) {
                 PlayerDatabase.savePlayerScore(manager.getLocalPlayer().name, gameState.wordsCompleted, (int)(gameState.wordsCompleted * 5.0 / Math.max(1e-6, (System.currentTimeMillis() - gameState.startMs) / 60000.0)));
             }
@@ -276,7 +289,7 @@ public class GameRenderer {
         if (record == null) return;
         
         int panelWidth = RenderConfig.SCORE_PANEL_WIDTH;
-        int panelHeight = 140;
+        int panelHeight = 100; // Reduced height
         int panelX = gamePanel.getWidth() - panelWidth - RenderConfig.SCORE_PANEL_MARGIN;
         int panelY = RenderConfig.SCORE_PANEL_Y;
         
@@ -284,13 +297,14 @@ public class GameRenderer {
         
         g2.setColor(Color.WHITE);
         g2.setFont(uiSettings.fontBold16);
-        RenderUtils.centerTextAt(g2, "🎮 " + playerName, panelX + panelWidth / 2, panelY + 20);
+        RenderUtils.centerTextAt(g2, playerName, panelX + panelWidth / 2, panelY + 20);
         
         g2.setColor(new Color(255, 255, 255, 60));
         g2.drawLine(panelX + 20, panelY + 30, panelX + panelWidth - 20, panelY + 30);
         
+
         g2.setColor(new Color(100, 255, 100));
-        g2.setFont(uiSettings.fontBold16);
+        g2.setFont(uiSettings.fontPlain16);
         g2.drawString("Wins: " + record.onlineWins, panelX + 15, panelY + 50);
         
         g2.setColor(new Color(255, 100, 100));
@@ -299,14 +313,6 @@ public class GameRenderer {
         g2.setColor(new Color(255, 215, 0));
         double winRate = record.getWinRate() * 100;
         g2.drawString(String.format("Win Rate: %.1f%%", winRate), panelX + 15, panelY + 86);
-        
-        g2.setColor(new Color(150, 200, 255));
-        g2.drawString("Logins: " + record.onlineLogins, panelX + 15, panelY + 104);
-        
-        g2.setColor(new Color(200, 200, 200));
-        g2.setFont(uiSettings.fontSmall12);
-        String charName = record.favoriteCharacter.replace("_", " ");
-        g2.drawString("📺 " + charName, panelX + 15, panelY + 122);
     }
 
     private void drawScoreInfo(Graphics2D g2) {
@@ -409,6 +415,31 @@ public class GameRenderer {
         int x = (gamePanel.getWidth() - totalW) / 2;
 
         g2.setColor(new Color(100, 255, 100));
+        g2.drawString(pre, x, y);
+        int curX = x + fm.stringWidth(pre);
+
+        if (frame != null) {
+            g2.drawImage(frame, curX, y - spriteH + 2, spriteW, spriteH, null);
+            curX += spriteW;
+        }
+
+        g2.drawString(post, curX, y);
+    }
+    
+    private void drawEPrompt(Graphics2D g2, String pre, String post) {
+        BufferedImage frame = uiSettings.backspaceFrameNormal; // Reuse backspace frame for ESC
+        
+        g2.setFont(uiSettings.fontBold16);
+        FontMetrics fm = g2.getFontMetrics();
+        int spriteH = RenderConfig.DEFAULT_SPRITE_HEIGHT;
+        int spriteW = (frame != null)
+                ? (int) (frame.getWidth() * (spriteH / (double) frame.getHeight()))
+                : 0;
+        int totalW = fm.stringWidth(pre) + spriteW + fm.stringWidth(post);
+        int y = gamePanel.getHeight() - RenderConfig.BACKSPACE_PROMPT_Y_OFFSET;
+        int x = (gamePanel.getWidth() - totalW) / 2;
+
+        g2.setColor(new Color(255, 100, 100)); // Red color for exit
         g2.drawString(pre, x, y);
         int curX = x + fm.stringWidth(pre);
 

@@ -17,7 +17,7 @@ public class PlayerDatabase {
             int logins = existing != null ? existing.onlineLogins : 0;
             String favChar = existing != null ? existing.favoriteCharacter : "medieval_king";
             
-            // Increment login count
+
             logins++;
             
             records.put(playerName, new PlayerRecord(playerName, score, wpm, wins, losses, logins, favChar, System.currentTimeMillis()));
@@ -136,7 +136,7 @@ public class PlayerDatabase {
                     if (parts.length >= 4) {
                         String name = parts[0].trim();
                         
-                        // Skip lines with empty names or invalid data
+
                         if (name.isEmpty()) {
                             System.err.println("Skipping line " + lineNumber + " with empty name: " + line);
                             continue;
@@ -167,7 +167,7 @@ public class PlayerDatabase {
                     }
                 } catch (Exception e) {
                     System.err.println("Error parsing line " + lineNumber + ": " + line + " - " + e.getMessage());
-                    // Continue processing other lines
+
                 }
             }
         }

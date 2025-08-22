@@ -16,6 +16,7 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
     private boolean isHost = false;
     private MatchState matchState = MatchState.OFFLINE;
     private int currentCountdown = 0;
+    private int previousCountdown = -1;
     private long countdownStartTime = 0;
     private boolean gameOverOverlayShowing = false;
     private String gameOverResult = "";
@@ -63,6 +64,10 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
         }
     }
     
+    public boolean connectToServer() {
+        return connectToServer("localhost", 8888);
+    }
+    
     public void cancelMatchmaking() {
         if (matchState == MatchState.WAITING_FOR_OPPONENT || matchState == MatchState.COUNTDOWN) {
             if (currentRoomId != null && localPlayer != null) {
@@ -80,6 +85,7 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
             opponent = null;
             localPlayer = null;
             currentCountdown = 0;
+            previousCountdown = -1;
             
             if (gameState != null) {
                 gameState.setMultiplayerMode(false);
@@ -143,7 +149,7 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
             if (!newCharId.equals(localPlayer.selectedCharacterId)) {
                 localPlayer.selectedCharacterId = newCharId;
                 
-                // Update local player's character pack
+
                 if (gameState != null) {
                     CharacterConfig config = CharacterConfig.getInstance();
                     CharacterPack newPlayerCharPack = config.createCharacterPack(
@@ -297,20 +303,45 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
     }
     
     private void handleCountdownStart(NetworkMessage message) {
+        System.out.println("=== COUNTDOWN START RECEIVED ===");
+        System.out.println("Previous state: " + matchState);
         matchState = MatchState.COUNTDOWN;
+        previousCountdown = -1;
         if (message.data instanceof Integer) {
             currentCountdown = (Integer) message.data;
+            System.out.println("Countdown value: " + currentCountdown);
         } else {
             currentCountdown = 10; // fallback
+            System.out.println("Using fallback countdown: " + currentCountdown);
         }
         countdownStartTime = System.currentTimeMillis();
+        System.out.println("New state: " + matchState + ", Start time: " + countdownStartTime);
         NotificationSystem.showSuccess("Match starting!");
+        
+
+        if (gamePanel != null) {
+            gamePanel.repaint();
+        }
     }
     
     private void handleCountdownUpdate(NetworkMessage message) {
         if (message.data instanceof Integer) {
             int countdown = (Integer) message.data;
+            previousCountdown = currentCountdown;
             currentCountdown = countdown;
+            System.out.println("Countdown update: " + countdown);
+            
+
+            if (countdown != previousCountdown && (countdown == 3 || countdown == 2 || countdown == 1)) {
+                if (gameState != null && gameState.sCountdown != null && uiSettings != null && uiSettings.isAudible()) {
+                    gameState.sCountdown.play();
+                }
+            }
+            
+            if (gamePanel != null) {
+                gamePanel.repaint();
+            }
+            
             if (countdown > 0) {
                 NotificationSystem.showWarning("Starting in " + countdown);
             }
@@ -337,7 +368,7 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
                 gameState.setOpponentName(opponent.name);
             }
             
-            // Reset all scores and health for fresh match
+
             gameState.playerHealth = GameConfig.MAX_HEALTH;
             gameState.botHealth = GameConfig.MAX_HEALTH;
             gameState.wordsCompleted = 0; // Reset GameState score
@@ -614,19 +645,20 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
 
     public void resetToMainMenu() {
         
-        // Stay connected and ready for next match
+
         matchState = MatchState.CONNECTED;
         isHost = false;
         currentRoomId = null;
         opponent = null;
         localPlayer = null;
         currentCountdown = 0;
+        previousCountdown = -1;
         countdownStartTime = 0;
         gameOverOverlayShowing = false;
         gameOverResult = "";
         gameOverOverlayStartTime = 0;
         
-        // Reset game state completely for fresh match
+
         if (gameState != null) {
             gameState.resetToReady();
             gameState.setOpponentName("");
@@ -634,11 +666,11 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
             gameState.setStatusMessage("Ready for online match");
             gameState.wordsCompleted = 0; // Reset score completely
             
-            // Reset character animations
+
             resetCharacterAnimations();
         }
         
-        // Reset UI to show matchmaking button again
+
         OnlineUI.resetToMatchReady();
         
     }
@@ -666,7 +698,7 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
                 }
             }
             
-            // Ensure opponent field is synced with bot in multiplayer mode
+
             if (gameState.isMultiplayerMode() && gameState.bot != null) {
                 gameState.opponent = gameState.bot;
             }
@@ -692,6 +724,7 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
         localPlayer = null;
         isHost = false;
         currentCountdown = 0;
+        previousCountdown = -1;
         countdownStartTime = 0;
         
 
@@ -724,6 +757,7 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
     }
     
 
+    public boolean isConnected() { return isConnected; }
     public boolean isOnline() { return matchState != MatchState.OFFLINE; }
     public boolean isRacing() { return matchState == MatchState.RACING; }
     public MatchState getMatchState() { return matchState; }

@@ -69,6 +69,7 @@ public class TypingGameServer {
                         System.out.println("Room is full! Starting countdown...");
                         room.roomState = GameRoom.RoomState.COUNTDOWN;
                         room.countdown = 10;
+                        room.countdownStartTime = System.currentTimeMillis();
                         
                         for (Player player : room.players) {
                             broadcastToRoom(room.id, new NetworkMessage(
@@ -76,6 +77,7 @@ public class TypingGameServer {
                                 null, room.id, player));
                         }
                         
+                        System.out.println("Broadcasting COUNTDOWN_START with initial countdown: " + room.countdown);
                         broadcastToRoom(room.id, new NetworkMessage(
                             NetworkMessage.MessageType.COUNTDOWN_START,
                             null, room.id, room.countdown));
@@ -190,7 +192,7 @@ public class TypingGameServer {
                 if (gameStarted) {
                     System.out.println("Game starting in room " + room.name + "!");
                     
-                    // Reset all player scores for fresh match
+
                     for (Player p : room.players) {
                         p.wordsCompleted = 0;
                         p.health = 5; // Reset to max health

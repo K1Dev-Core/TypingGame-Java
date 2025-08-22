@@ -19,6 +19,7 @@ public class GameState implements StateManager {
     public SoundPool sSlash;
     public SoundPool sHit;
     public SoundPool sDeath;
+    public SoundPool sCountdown;
     public BackgroundMusic bgMusic;
     public HitEffect hit;
     public List<WordEntry> wordBank;
@@ -124,6 +125,7 @@ public class GameState implements StateManager {
         sSlash = new SoundPool("./res/wav/slash1.wav", 4);
         sHit = new SoundPool("./res/wav/villager.wav", 4);
         sDeath = new SoundPool("./res/wav/classic_hurt.wav", 2);
+        sCountdown = new SoundPool("./res/wav/click15_1.wav", 3);
     }
 
     private void initBackgroundMusic() {

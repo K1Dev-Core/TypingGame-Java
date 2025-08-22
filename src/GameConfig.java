@@ -8,7 +8,7 @@ public class GameConfig {
     public static final String CHAR_SET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     public static final String WORDS_TXT_PATH = "./res/words.txt";
     public static final String CLICK_WAV_PATH = "./res/wav/click3_1.wav";
-    public static final int MAX_HEALTH = 10;
+    public static final int MAX_HEALTH = 5;
     public static final int DEBOUNCE_MS = 35;
     
     public static final int GAME_TIMER_DELAY = 16;
