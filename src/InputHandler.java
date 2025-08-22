@@ -181,11 +181,28 @@ public class InputHandler implements KeyListener, MouseListener {
     @Override
     public void keyPressed(KeyEvent e) {
         int code = e.getKeyCode();
-
-        // Handle name input first - highest priority when name input is showing
         if (OnlineUI.isShowingNameInput()) {
             handleNameInputKeys(e);
-            return; // Don't process other keys when name input is active
+            return;
+        }
+        
+        if (OnlineUI.isShowingExitConfirmation()) {
+            if (code == KeyEvent.VK_Y) {
+                OnlineUI.handleExitConfirmationKey('Y');
+                gamePanel.repaint();
+                return;
+            }
+            if (code == KeyEvent.VK_N) {
+                OnlineUI.handleExitConfirmationKey('N');
+                gamePanel.repaint();
+                return;
+            }
+            if (code == KeyEvent.VK_ESCAPE) {
+                OnlineUI.handleExitConfirmationKey((char) 27);
+                gamePanel.repaint();
+                return;
+            }
+            return;
         }
 
         if (code >= 0 && code < gameState.lastPressAt.length) {
@@ -196,10 +213,14 @@ public class InputHandler implements KeyListener, MouseListener {
         }
 
         if (code == KeyEvent.VK_ESCAPE) {
-            // If in online mode, allow ESC to exit back to main menu
+            if (OnlineUI.isShowingExitConfirmation()) {
+                OnlineUI.handleExitConfirmationKey((char) 27);
+                gamePanel.repaint();
+                return;
+            }
+            
             if (OnlineMatchManager.getInstance().isOnline()) {
-                OnlineMatchManager.getInstance().resetToMainMenu();
-                NotificationSystem.showInfo("Returned to main menu");
+                OnlineUI.showExitConfirmation();
                 gamePanel.repaint();
                 return;
             } else {
@@ -241,53 +262,45 @@ public class InputHandler implements KeyListener, MouseListener {
         if (code >= KeyEvent.VK_A && code <= KeyEvent.VK_Z) {
             char typedChar = (char) ('A' + code - KeyEvent.VK_A);
             
-            // Handle online system typing
             OnlineMatchManager.getInstance().handleCharacterTyped(typedChar);
             
             int oldPlayerIdx = gameState.playerIdx;
             gameState.handleChar(typedChar, animController);
 
-            // Check if word was completed in online mode
             if (OnlineMatchManager.getInstance().isRacing() && gameState.playerIdx > oldPlayerIdx) {
                 OnlineMatchManager.getInstance().sendPlayerProgress(gameState.playerIdx);
                 
-                // Check if word is complete
                 if (gameState.playerIdx >= gameState.current.word.length()) {
                     OnlineMatchManager.getInstance().handleWordCompleted();
                 }
             }
             
-            // Legacy multiplayer support
             if (gameState.isMultiplayerMode() && gameState.playerIdx > oldPlayerIdx &&
                     networkClient != null && localPlayer != null) {
                 try {
                     networkClient.sendMessage(new NetworkMessage(
                             NetworkMessage.MessageType.PLAYER_PROGRESS,
                             localPlayer.id, null, gameState.playerIdx));
-                } catch (Exception ex1) {
-                    System.err.println("Error sending player progress: " + ex1.getMessage());
+                } catch (Exception ex2) {
+                    System.err.println("Error sending player progress: " + ex2.getMessage());
                 }
             }
         } else if (code >= KeyEvent.VK_0 && code <= KeyEvent.VK_9) {
             char typedChar = (char) ('0' + code - KeyEvent.VK_0);
             
-            // Handle online system typing
             OnlineMatchManager.getInstance().handleCharacterTyped(typedChar);
             
             int oldPlayerIdx = gameState.playerIdx;
             gameState.handleChar(typedChar, animController);
 
-            // Check if word was completed in online mode
             if (OnlineMatchManager.getInstance().isRacing() && gameState.playerIdx > oldPlayerIdx) {
                 OnlineMatchManager.getInstance().sendPlayerProgress(gameState.playerIdx);
                 
-                // Check if word is complete
                 if (gameState.playerIdx >= gameState.current.word.length()) {
                     OnlineMatchManager.getInstance().handleWordCompleted();
                 }
             }
             
-            // Legacy multiplayer support
             if (gameState.isMultiplayerMode() && gameState.playerIdx > oldPlayerIdx &&
                     networkClient != null && localPlayer != null) {
                 try {
@@ -305,35 +318,30 @@ public class InputHandler implements KeyListener, MouseListener {
         int code = e.getKeyCode();
         char keyChar = e.getKeyChar();
         
-        // Handle Enter key
         if (code == KeyEvent.VK_ENTER) {
             OnlineUI.handleNameInput('\n');
             gamePanel.repaint();
             return;
         }
         
-        // Handle Backspace
         if (code == KeyEvent.VK_BACK_SPACE) {
             OnlineUI.handleNameInput('\b');
             gamePanel.repaint();
             return;
         }
         
-        // Handle Space
         if (code == KeyEvent.VK_SPACE) {
             OnlineUI.handleNameInput(' ');
             gamePanel.repaint();
             return;
         }
         
-        // Handle Escape to cancel name input
         if (code == KeyEvent.VK_ESCAPE) {
             OnlineUI.exitOnlineMode();
             gamePanel.repaint();
             return;
         }
         
-        // Handle letter and number keys
         if (code >= KeyEvent.VK_A && code <= KeyEvent.VK_Z) {
             char typedChar = (char) ('A' + code - KeyEvent.VK_A);
             OnlineUI.handleNameInput(typedChar);
@@ -344,7 +352,6 @@ public class InputHandler implements KeyListener, MouseListener {
             gamePanel.repaint();
         }
         
-        // Also handle keyChar for other valid characters
         else if (Character.isLetterOrDigit(keyChar) && keyChar != KeyEvent.CHAR_UNDEFINED) {
             OnlineUI.handleNameInput(Character.toUpperCase(keyChar));
             gamePanel.repaint();
@@ -358,7 +365,6 @@ public class InputHandler implements KeyListener, MouseListener {
             return;
         }
         
-        // TAB key to enter online mode
         if (code == KeyEvent.VK_TAB) {
             if (!OnlineMatchManager.getInstance().isOnline()) {
                 OnlineUI.enterOnlineMode();
@@ -369,15 +375,12 @@ public class InputHandler implements KeyListener, MouseListener {
 
         if (code == KeyEvent.VK_SPACE) {
             gameState.isSpaceHeld = true;
-            // Don't allow starting game with SPACE if in online mode
             if (!OnlineMatchManager.getInstance().isOnline()) {
                 gameState.resetRun(animController);
             }
             gamePanel.repaint();
             return;
         }
-
-        // Remove old TAB handling for online - now handled by online button click
 
         if (code == KeyEvent.VK_BACK_SPACE) {
             uiSettings.showSettings = !uiSettings.showSettings;
@@ -429,7 +432,6 @@ public class InputHandler implements KeyListener, MouseListener {
 
     @Override
     public void keyTyped(KeyEvent e) {
-        // Name input is now handled in keyPressed for better control
     }
 
     @Override
@@ -448,7 +450,6 @@ public class InputHandler implements KeyListener, MouseListener {
 
     @Override
     public void mouseClicked(MouseEvent e) {
-        // Handle online UI clicks
         OnlineUI.handleClick(e.getX(), e.getY(), gamePanel.getWidth(), gamePanel.getHeight());
     }
 

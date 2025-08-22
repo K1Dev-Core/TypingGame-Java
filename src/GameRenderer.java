@@ -34,8 +34,8 @@ public class GameRenderer {
 
         try {
             OnlineMatchManager manager = OnlineMatchManager.getInstance();
-            // Hide bot character when online mode is active (after name entry)
-            if (!manager.isOnline() || (manager.isOnline() && OnlineUI.getPlayerName() == null)) {
+            if (!manager.isOnline() || (manager.isOnline() && OnlineUI.getPlayerName() == null) || 
+                (manager.isOnline() && manager.isRacing())) {
                 gameState.bot.draw(g2, gameState.CHAR_SCALE);
             }
         } catch (Throwable ignored) {
@@ -50,14 +50,13 @@ public class GameRenderer {
 
         drawWord(g2, now);
         drawFooterInfo(g2);
-        if (gameState.state != GameConfig.State.PLAYING) {
-            if (OnlineMatchManager.getInstance().isOnline()) {
-                // Show online player statistics when in online mode
-                drawOnlinePlayerStats(g2);
-            } else {
-                // Show regular score info in offline mode
-                drawScoreInfo(g2);
-            }
+        
+        OnlineMatchManager.MatchState matchState = OnlineMatchManager.getInstance().getMatchState();
+        if (OnlineMatchManager.getInstance().isOnline() && OnlineUI.getPlayerName() != null && 
+            matchState != OnlineMatchManager.MatchState.RACING) {
+            drawOnlinePlayerStats(g2);
+        } else if (gameState.state != GameConfig.State.PLAYING && !OnlineMatchManager.getInstance().isOnline()) {
+            drawScoreInfo(g2);
         }
         if (gameState.state == GameConfig.State.PLAYING) {
             EffectRenderer.renderComboEffect(g2, gameState.comboEffect, uiSettings.fontBold20, uiSettings.fontPlain16);
@@ -65,11 +64,9 @@ public class GameRenderer {
         }
         EffectRenderer.renderHitEffect(g2, gameState.hit);
 
-        // Draw notification system
         NotificationSystem.update();
         NotificationSystem.render(g2, gamePanel.getWidth(), gamePanel.getHeight());
         
-        // Draw online UI
         OnlineUI.renderOnlineUI(g2, gamePanel.getWidth(), gamePanel.getHeight());
         
         if (uiSettings.showSettings)
@@ -91,12 +88,9 @@ public class GameRenderer {
         double acc = 100.0;
 
         if (gameState.state == GameConfig.State.PLAYING) {
-            // Use different HUD based on online/offline mode
             if (OnlineMatchManager.getInstance().isRacing()) {
-                // Online multiplayer HUD
                 OnlineHUD.renderOnlineHUD(g2, gameState, uiSettings, gamePanel.getWidth(), gamePanel.getHeight());
             } else {
-                // Offline bot mode HUD
                 drawGameHUD(g2, mm, ss, wpm, acc);
                 drawHealthBars(g2);
             }
@@ -256,12 +250,8 @@ public class GameRenderer {
 
     private void drawFooterInfo(Graphics2D g2) {
         if (gameState.state == GameConfig.State.READY) {
-            // Don't show space prompt if in online mode
             if (!OnlineMatchManager.getInstance().isOnline()) {
                 drawSpacePrompt(g2, "กด ", " เพื่อเริ่มเกม");
-                // Don't show tab prompt anymore - online button is integrated in UI
-            } else {
-                // Online status is now handled by OnlineUI.renderOnlineUI()
             }
 
             drawArrowPrompt(g2, "กด ", " เพื่อเลือกตัวละคร");
@@ -271,7 +261,6 @@ public class GameRenderer {
             drawArrowPrompt(g2, "กด ", " เพื่อเลือกตัวละคร");
             drawBackspacePrompt(g2, "กด ", " เพื่อตั้งค่า");
             
-            // Save player score when game ends
             OnlineMatchManager manager = OnlineMatchManager.getInstance();
             if (manager.getLocalPlayer() != null) {
                 PlayerDatabase.savePlayerScore(manager.getLocalPlayer().name, gameState.wordsCompleted, (int)(gameState.wordsCompleted * 5.0 / Math.max(1e-6, (System.currentTimeMillis() - gameState.startMs) / 60000.0)));
@@ -287,7 +276,7 @@ public class GameRenderer {
         if (record == null) return;
         
         int panelWidth = RenderConfig.SCORE_PANEL_WIDTH;
-        int panelHeight = 120; // Larger height for more stats
+        int panelHeight = 140;
         int panelX = gamePanel.getWidth() - panelWidth - RenderConfig.SCORE_PANEL_MARGIN;
         int panelY = RenderConfig.SCORE_PANEL_Y;
         
@@ -295,29 +284,29 @@ public class GameRenderer {
         
         g2.setColor(Color.WHITE);
         g2.setFont(uiSettings.fontBold16);
-        RenderUtils.centerTextAt(g2, "Online Stats - " + playerName, panelX + panelWidth / 2, panelY + 20);
+        RenderUtils.centerTextAt(g2, "🎮 " + playerName, panelX + panelWidth / 2, panelY + 20);
         
         g2.setColor(new Color(255, 255, 255, 60));
         g2.drawLine(panelX + 20, panelY + 30, panelX + panelWidth - 20, panelY + 30);
         
-        // Online wins
         g2.setColor(new Color(100, 255, 100));
         g2.setFont(uiSettings.fontBold16);
         g2.drawString("Wins: " + record.onlineWins, panelX + 15, panelY + 50);
         
-        // Online losses
         g2.setColor(new Color(255, 100, 100));
         g2.drawString("Losses: " + record.onlineLosses, panelX + 15, panelY + 68);
         
-        // Win rate
         g2.setColor(new Color(255, 215, 0));
         double winRate = record.getWinRate() * 100;
         g2.drawString(String.format("Win Rate: %.1f%%", winRate), panelX + 15, panelY + 86);
         
-        // Favorite character
+        g2.setColor(new Color(150, 200, 255));
+        g2.drawString("Logins: " + record.onlineLogins, panelX + 15, panelY + 104);
+        
         g2.setColor(new Color(200, 200, 200));
         g2.setFont(uiSettings.fontSmall12);
-        g2.drawString("Fav. Character: " + record.favoriteCharacter.replace("_", " "), panelX + 15, panelY + 104);
+        String charName = record.favoriteCharacter.replace("_", " ");
+        g2.drawString("📺 " + charName, panelX + 15, panelY + 122);
     }
 
     private void drawScoreInfo(Graphics2D g2) {

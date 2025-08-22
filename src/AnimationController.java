@@ -46,6 +46,15 @@ public class AnimationController {
         playIfAudible(gameState.sClick);
         
         OnlineMatchManager.getInstance().updateLocalPlayerCharacter();
+        
+        String playerName = OnlineUI.getPlayerName();
+        if (playerName != null && !playerName.trim().isEmpty()) {
+            String selectedCharId = playerCharIds[uiSettings.selectedCharIdx];
+            PlayerDatabase.updateFavoriteCharacter(playerName, selectedCharId);
+            
+            String charDisplayName = selectedCharId.replace("_", " ");
+            NotificationSystem.showInfo("Character updated: " + charDisplayName);
+        }
     }
 
     public void applySelectedCharacter() {

@@ -33,7 +33,6 @@ public class GameState implements StateManager {
     private boolean showOnlineUI = false;
     private String statusMessage = "";
 
-    // Multiplayer opponent data
     private String opponentName = "";
     private int opponentIdx = 0;
     private CharacterPack opponentCharacterPack;
@@ -269,13 +268,9 @@ public class GameState implements StateManager {
             animController.setAnim(bot, CharacterPack.Anim.IDLE);
         }
 
-        // CRITICAL: Only generate new word locally in offline mode  
-        // In online multiplayer mode, words come from server
         if (!isMultiplayerMode) {
             nextWord();
-            System.out.println("OFFLINE: Generated word for new run: " + (current != null ? current.word : "null"));
         } else {
-            System.out.println("ONLINE: Preserving server word for new run: " + (current != null ? current.word : "null"));
         }
         
         startMs = System.currentTimeMillis();
@@ -304,9 +299,10 @@ public class GameState implements StateManager {
         if (!botSeq)
             return;
         if (botPhase == 0) {
-            bot.x = Math.max(playerBaseX + 64, player.x + 64);
-            bot.y = groundY;
-            animController.setAnim(bot, CharacterPack.Anim.ATTACK);
+            CharacterPack attackingBot = isMultiplayerMode && opponent != null ? opponent : bot;
+            attackingBot.x = Math.max(playerBaseX + 64, player.x + 64);
+            attackingBot.y = groundY;
+            animController.setAnim(attackingBot, CharacterPack.Anim.ATTACK);
             animController.setAnim(player, CharacterPack.Anim.TAKE_HIT);
             animController.playIfAudible(sHit);
             playerTakingHit = true;
@@ -320,9 +316,10 @@ public class GameState implements StateManager {
             botPhase = 1;
         } else if (botPhase == 1) {
             if (now >= botPhaseUntil) {
-                bot.x = botBaseX;
-                bot.y = groundY;
-                animController.setAnim(bot, CharacterPack.Anim.IDLE);
+                CharacterPack attackingBot = isMultiplayerMode && opponent != null ? opponent : bot;
+                attackingBot.x = botBaseX;
+                attackingBot.y = groundY;
+                animController.setAnim(attackingBot, CharacterPack.Anim.IDLE);
                 botSeq = false;
 
                 if (pendingGameOver && gameOverWinner.equals("OVER")) {
@@ -341,7 +338,8 @@ public class GameState implements StateManager {
         if (!playerSeq)
             return;
         if (playerPhase == 0) {
-            player.x = Math.min(botBaseX - 64, bot.x - 64);
+            CharacterPack targetBot = isMultiplayerMode && opponent != null ? opponent : bot;
+            player.x = Math.min(botBaseX - 64, targetBot.x - 64);
             player.y = groundY;
             animController.setAnim(player, CharacterPack.Anim.ATTACK);
             if (isMultiplayerMode && opponent != null) {
@@ -371,7 +369,8 @@ public class GameState implements StateManager {
                     state = GameConfig.State.GAMEOVER;
                     if (gameOverWinner.equals("WIN")) {
                         current = new WordEntry("WIN", "WIN", "ชนะ", "ชัยชนะ");
-                        animController.setAnim(bot, CharacterPack.Anim.DEATH);
+                        CharacterPack targetBot = isMultiplayerMode && opponent != null ? opponent : bot;
+                        animController.setAnim(targetBot, CharacterPack.Anim.DEATH);
                     } else {
                         current = new WordEntry("OVER", "OVER", "โอเวอร์", "จบ");
                         animController.setAnim(player, CharacterPack.Anim.DEATH);
@@ -380,15 +379,9 @@ public class GameState implements StateManager {
                     ScoreManager.getInstance().saveScore(wordsCompleted);
                     pendingGameOver = false;
                 } else {
-                    // CRITICAL: Only generate new word locally in offline mode
-                    // In online multiplayer mode, wait for server to send new word
                     if (!isMultiplayerMode) {
                         nextWord();
-                        System.out.println("OFFLINE: Generated next word after player attack: " + (current != null ? current.word : "null"));
                     } else {
-                        System.out.println("ONLINE: Waiting for server word after player attack, current: " + (current != null ? current.word : "null"));
-                        // In online mode, server will send GAME_STATE_UPDATE with new word
-                        // Don't generate locally to prevent word conflicts
                     }
                 }
             }
@@ -411,13 +404,8 @@ public class GameState implements StateManager {
 
                 wordsCompleted++;
                 
-                // Handle combat based on mode
                 if (OnlineMatchManager.getInstance().isRacing()) {
-                    // Online multiplayer mode - word completion is handled by InputHandler
-                    // to avoid duplicate calls. The InputHandler will call handleWordCompleted()
-                    // after checking progress, so we don't call it here.
                 } else {
-                    // Offline bot mode
                     botHealth = Math.max(0, botHealth - 1);
                     startPlayerAttackSequence();
 
@@ -512,13 +500,9 @@ public class GameState implements StateManager {
             state = GameConfig.State.PLAYING;
             startMs = System.currentTimeMillis();
             
-            // CRITICAL: Only generate words locally in offline mode
-            // In online multiplayer mode, words are sent by the server
             if (!isMultiplayerMode) {
                 nextWord();
-                System.out.println("OFFLINE MODE: Generated local word: " + (current != null ? current.word : "null"));
             } else {
-                System.out.println("ONLINE MODE: Waiting for server word, current: " + (current != null ? current.word : "null"));
             }
             
             if (bgMusic != null) {
@@ -531,14 +515,19 @@ public class GameState implements StateManager {
     public void resetTypingProgress() {
         playerIdx = 0;
         opponentIdx = 0;
-        // Force UI update to reflect reset progress
-        System.out.println("Reset typing progress - word: " + (current != null ? current.word : "null"));
     }
 
     public void setMultiplayerMode(boolean multiplayer) {
         this.isMultiplayerMode = multiplayer;
         if (multiplayer && opponent == null) {
-            opponent = new CharacterPack("./res/characters/Wizard/", botBaseX, groundY, false);
+            CharacterConfig config = CharacterConfig.getInstance();
+            opponent = config.createCharacterPack(
+                "medieval_king",
+                botBaseX,
+                groundY,
+                true
+            );
+            bot = opponent;
         }
     }
 
@@ -550,27 +539,20 @@ public class GameState implements StateManager {
         if (word != null && !word.isEmpty()) {
             this.currentWord = word;
             
-            // Parse the word format: "WORD|pronunciation|meaning"
             String[] parts = word.split("\\|");
             
             if (parts.length >= 3) {
-                // Full format with pronunciation and meaning
                 String mainWord = parts[0].trim();
                 String pronunciation = parts[1].trim();
                 String meaning = parts[2].trim();
                 current = new WordEntry(mainWord, mainWord, pronunciation, meaning);
-                System.out.println("Parsed word: '" + mainWord + "' (" + pronunciation + " - " + meaning + ")");
             } else if (parts.length == 2) {
-                // Partial format with pronunciation
                 String mainWord = parts[0].trim();
                 String pronunciation = parts[1].trim();
                 current = new WordEntry(mainWord, mainWord, pronunciation, mainWord);
-                System.out.println("Parsed word: '" + mainWord + "' (" + pronunciation + ")");
             } else {
-                // Simple format, just the word
                 String mainWord = word.trim().toUpperCase();
                 current = new WordEntry(mainWord, mainWord, mainWord, mainWord);
-                System.out.println("Simple word: '" + mainWord + "'");
             }
         }
     }
@@ -627,12 +609,10 @@ public class GameState implements StateManager {
         return opponentCharacterPack;
     }
 
-    // StateManager interface implementation
     @Override
     public void pauseGame() {
         if (state == GameConfig.State.PLAYING) {
             previousState = state;
-            // Note: No pause state in current GameConfig.State enum
         }
     }
 
@@ -697,6 +677,5 @@ public class GameState implements StateManager {
 
     @Override
     public void updateGameTime() {
-        // Time is automatically tracked via startMs
     }
 }

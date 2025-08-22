@@ -28,7 +28,6 @@ public class GamePanel extends JPanel implements ActionListener {
         renderer = new GameRenderer(this, gameState, uiSettings);
         timer = new Timer(GameConfig.GAME_TIMER_DELAY, this);
         
-        // Initialize online match manager
         OnlineMatchManager.getInstance().initialize(this, gameState, uiSettings);
 
         initPanel();
@@ -159,7 +158,6 @@ public class GamePanel extends JPanel implements ActionListener {
         setFocusable(true);
         requestFocusInWindow();
 
-        System.out.println("Started offline game - Player: " + playerName + ", Character: " + characterIndex);
     }
 
     public void startOnlineGame(Player player, NetworkClient client, String roomId, int characterIndex) {
@@ -175,9 +173,6 @@ public class GamePanel extends JPanel implements ActionListener {
 
         setFocusable(true);
         requestFocusInWindow();
-
-        System.out.println("Started online game - Player: " + player.name + ", Room: " + roomId + ", Character: "
-                + characterIndex);
     }
 
     public void startOnlineGame() {
@@ -194,7 +189,6 @@ public class GamePanel extends JPanel implements ActionListener {
         setFocusable(true);
         requestFocusInWindow();
 
-        System.out.println("Started online game");
     }
 
     public void startOnlineGame(GameRoom room, NetworkClient client, Player player, boolean isHost) {
@@ -205,26 +199,22 @@ public class GamePanel extends JPanel implements ActionListener {
         gameState.setMultiplayerMode(true);
         gameState.setCurrentWord(room.currentWord);
 
-        // Set opponent name and character (the other player in the room)
         for (Player p : room.players) {
             if (!p.id.equals(player.id)) {
                 gameState.setOpponentName(p.name);
                 
-                // Set opponent character based on their selection
                 if (p.selectedCharacterId != null) {
                     CharacterConfig config = CharacterConfig.getInstance();
                     CharacterPack opponentCharPack = config.createCharacterPack(
                         p.selectedCharacterId,
                         gameState.botBaseX,
                         gameState.groundY,
-                        true  // facing left
+                        true
                     );
                     gameState.setOpponentCharacterPack(opponentCharPack);
-                    // Also update the bot field for rendering compatibility
                     gameState.bot = opponentCharPack;
-                    System.out.println("GamePanel: Set opponent character to " + p.selectedCharacterId);
+                    gameState.opponent = opponentCharPack;
                 } else {
-                    // Fallback to default character if no selection
                     CharacterConfig config = CharacterConfig.getInstance();
                     CharacterPack defaultCharPack = config.createCharacterPack(
                         "medieval_king",
@@ -234,7 +224,7 @@ public class GamePanel extends JPanel implements ActionListener {
                     );
                     gameState.setOpponentCharacterPack(defaultCharPack);
                     gameState.bot = defaultCharPack;
-                    System.out.println("GamePanel: Used default character for opponent");
+                    gameState.opponent = defaultCharPack;
                 }
                 break;
             }
@@ -284,11 +274,9 @@ public class GamePanel extends JPanel implements ActionListener {
                     if (message.data instanceof Integer) {
                         int opponentProgress = (Integer) message.data;
                         gameState.setOpponentIdx(opponentProgress);
-                        // Don't set status message for progress updates to avoid spam
                     }
                     break;
                 default:
-                    // Handle other message types if needed
                     break;
             }
             repaint();

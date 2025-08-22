@@ -57,7 +57,6 @@ public class OnlineHUD {
             opponentName = "Opponent";
         }
         
-        System.out.println("HUD Display - Local: " + localPlayerName + ", Opponent: " + opponentName);
         
         // Player health bar (left side)
         int playerX = 50;
@@ -160,13 +159,7 @@ public class OnlineHUD {
         g2.setColor(Color.WHITE);
         g2.drawString(scoreText, scoreX, panelY + 20);
         
-        // "VS" text
-        g2.setFont(new Font("Arial", Font.PLAIN, 12));
-        g2.setColor(new Color(200, 200, 200));
-        String vsText = localPlayerName + " VS " + opponentName;
-        FontMetrics vsFm = g2.getFontMetrics();
-        int vsX = (screenWidth - vsFm.stringWidth(vsText)) / 2;
-        g2.drawString(vsText, vsX, panelY + panelHeight + 15);
+        // Removed VS text display - names only appear above health bars
     }
     
     private static void renderConnectionStatus(Graphics2D g2, int screenWidth, int screenHeight) {

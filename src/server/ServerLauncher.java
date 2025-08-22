@@ -9,7 +9,6 @@ public class ServerLauncher {
         
         TypingGameServer server = new TypingGameServer();
         
-        // Add shutdown hook for clean server shutdown
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.out.println("\\nShutting down server...");
             try {

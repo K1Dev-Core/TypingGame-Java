@@ -91,7 +91,7 @@ public class CharacterConfig {
                 "./res/characters/Flyingeye",
                 0,
                 flyingEyeConfig,
-                false));
+                true));
     }
 
     public void addCharacter(CharacterData character) {

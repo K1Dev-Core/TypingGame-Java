@@ -77,25 +77,12 @@ public class NotificationSystem {
         textColor = new Color(textColor.getRed(), textColor.getGreen(), textColor.getBlue(), (int)(255 * alpha));
         
         g2.setColor(textColor);
-        g2.drawString(notification.message, x, y);
+        g2.drawString("+ "+notification.message, x, y);
     }
-    
-    private static Color getBackgroundColor(NotificationType type) {
-        switch (type) {
-            case SUCCESS: return new Color(46, 125, 50);
-            case WARNING: return new Color(237, 108, 2);
-            case ERROR: return new Color(198, 40, 40);
-            default: return new Color(25, 118, 210);
-        }
-    }
+
     
     private static Color getTextColor(NotificationType type) {
-        switch (type) {
-            case SUCCESS: return new Color(76, 175, 80); // Green
-            case WARNING: return new Color(255, 152, 0); // Orange  
-            case ERROR: return new Color(244, 67, 54);   // Red
-            default: return new Color(33, 150, 243);     // Blue
-        }
+        return new Color(255, 255, 255);
     }
     
     public static void clear() {

@@ -6,9 +6,9 @@ import java.util.*;
 public class WordBank {
     private List<String> words;
     private Random random;
-    private String lastGeneratedWord; // Track last word to prevent immediate duplicates
-    private Set<String> recentWords; // Track recent words for better duplicate prevention
-    private static final int RECENT_WORDS_MEMORY = 5; // Remember last 5 words
+    private String lastGeneratedWord;
+    private Set<String> recentWords;
+    private static final int RECENT_WORDS_MEMORY = 5;
 
     public WordBank() {
         words = new ArrayList<>();
@@ -75,21 +75,17 @@ public class WordBank {
             return words.get(0);
         }
         
-        // Create list of available words (excluding recent words)
         List<String> availableWords = new ArrayList<>();
         for (String word : words) {
-            // Skip if it's the current word to avoid
             if (avoidWord != null && word.equals(avoidWord)) {
                 continue;
             }
-            // Skip if it's in recent words memory (unless we have very few words)
             if (words.size() > RECENT_WORDS_MEMORY && recentWords.contains(word)) {
                 continue;
             }
             availableWords.add(word);
         }
         
-        // If no available words (all are recent), use any word except current
         if (availableWords.isEmpty()) {
             System.out.println("WordBank: All words are recent, using fallback selection");
             for (String word : words) {
@@ -99,7 +95,6 @@ public class WordBank {
             }
         }
         
-        // If still empty, return a fallback
         if (availableWords.isEmpty()) {
             return "GAME";
         }
@@ -110,8 +105,6 @@ public class WordBank {
     private void updateWordHistory(String word) {
         lastGeneratedWord = word;
         recentWords.add(word);
-        
-        // Maintain memory size limit
         if (recentWords.size() > RECENT_WORDS_MEMORY) {
             Iterator<String> iterator = recentWords.iterator();
             iterator.next();

@@ -10,7 +10,7 @@ public class Player implements Serializable {
     public double wpm;
     public boolean isReady;
     public boolean isAlive;
-    public String selectedCharacterId; // Add character selection info
+    public String selectedCharacterId;
 
     public Player(String id, String name) {
         this.id = id;
@@ -20,7 +20,7 @@ public class Player implements Serializable {
         this.wpm = 0.0;
         this.isReady = false;
         this.isAlive = true;
-        this.selectedCharacterId = "medieval_king"; // Default character
+        this.selectedCharacterId = "medieval_king";
     }
     
     public Player(String id, String name, String selectedCharacterId) {

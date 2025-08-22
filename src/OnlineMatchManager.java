@@ -17,6 +17,10 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
     private MatchState matchState = MatchState.OFFLINE;
     private int currentCountdown = 0;
     private long countdownStartTime = 0;
+    private boolean gameOverOverlayShowing = false;
+    private String gameOverResult = "";
+    private long gameOverOverlayStartTime = 0;
+    private static final int GAME_OVER_OVERLAY_DURATION = 3000;
     
     public enum MatchState {
         OFFLINE, CONNECTING, CONNECTED, WAITING_FOR_OPPONENT, COUNTDOWN, RACING, FINISHED
@@ -45,25 +49,22 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
         }
         
         matchState = MatchState.CONNECTING;
-        NotificationSystem.showInfo("Connecting to server...");
+        NotificationSystem.showInfo("Connecting...");
         
         if (networkClient.connect(host, port)) {
             isConnected = true;
             matchState = MatchState.CONNECTED;
-            NotificationSystem.showSuccess("Connected to server!");
+            NotificationSystem.showSuccess("Connected!");
             return true;
         } else {
             matchState = MatchState.OFFLINE;
-            NotificationSystem.showError("Failed to connect to server");
+            NotificationSystem.showError("Connection failed");
             return false;
         }
     }
     
     public void cancelMatchmaking() {
         if (matchState == MatchState.WAITING_FOR_OPPONENT || matchState == MatchState.COUNTDOWN) {
-            System.out.println("=== CANCELING MATCHMAKING ===");
-            
-            // Leave current room if in one
             if (currentRoomId != null && localPlayer != null) {
                 NetworkMessage leaveMsg = new NetworkMessage(
                     NetworkMessage.MessageType.LEAVE_ROOM,
@@ -75,20 +76,17 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
                 currentRoomId = null;
             }
             
-            // Reset match state
             matchState = MatchState.CONNECTED;
             opponent = null;
             localPlayer = null;
             currentCountdown = 0;
             
-            // Reset game state to menu
             if (gameState != null) {
                 gameState.setMultiplayerMode(false);
                 gameState.resetToReady();
             }
             
-            NotificationSystem.showInfo("Matchmaking canceled");
-            System.out.println("=== MATCHMAKING CANCELED ===");
+            NotificationSystem.showInfo("Cancelled");
         }
     }
 
@@ -120,7 +118,7 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
         );
         
         matchState = MatchState.WAITING_FOR_OPPONENT;
-        NotificationSystem.showInfo("Searching for opponent...");
+        NotificationSystem.showInfo("Searching...");
         networkClient.sendMessage(createRoomMsg);
     }
     
@@ -145,7 +143,18 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
             if (!newCharId.equals(localPlayer.selectedCharacterId)) {
                 localPlayer.selectedCharacterId = newCharId;
                 
-                // Send update immediately if connected, regardless of room state
+                // Update local player's character pack
+                if (gameState != null) {
+                    CharacterConfig config = CharacterConfig.getInstance();
+                    CharacterPack newPlayerCharPack = config.createCharacterPack(
+                        newCharId,
+                        gameState.playerBaseX,
+                        gameState.groundY,
+                        false
+                    );
+                    gameState.player = newPlayerCharPack;
+                }
+                
                 if (isConnected) {
                     NetworkMessage updateMsg = new NetworkMessage(
                         NetworkMessage.MessageType.PLAYER_JOIN,
@@ -154,7 +163,6 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
                         localPlayer
                     );
                     networkClient.sendMessage(updateMsg);
-                    System.out.println("📡 Sent character update: " + newCharId + " to server");
                 }
             }
         }
@@ -174,9 +182,6 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
     
     public void handleCharacterTyped(char c) {
         if (matchState != MatchState.RACING) return;
-        
-        // For now, we'll focus on progress tracking rather than character-by-character typing events
-        // The main game logic already handles character validation
     }
     
     public void handleWordCompleted() {
@@ -184,10 +189,8 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
             return;
         }
         
-        // Trigger player attack animation (same as bot mode)
         gameState.startPlayerAttackSequence();
         
-        // Send word completion to server
         NetworkMessage wordCompleteMsg = new NetworkMessage(
             NetworkMessage.MessageType.PLAYER_TYPED,
             localPlayer.id,
@@ -196,7 +199,7 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
         );
         networkClient.sendMessage(wordCompleteMsg);
         
-        NotificationSystem.showSuccess("Word completed! Attacking opponent...");
+        NotificationSystem.showSuccess("Word complete!");
     }
     
     @Override
@@ -241,53 +244,38 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
     private void handleRoomCreated(NetworkMessage message) {
         currentRoomId = (String) message.data;
         isHost = true;
-        NotificationSystem.showInfo("Room created! Waiting for opponent...");
+        NotificationSystem.showInfo("Room created!");
     }
     
     private void handlePlayerJoined(NetworkMessage message) {
         if (message.data instanceof Player) {
             Player joinedPlayer = (Player) message.data;
-            System.out.println("=== PLAYER_JOINED DEBUG ===");
-            System.out.println("Joined player: " + joinedPlayer.name + " (ID: " + joinedPlayer.id + ") Character: " + joinedPlayer.selectedCharacterId);
-            System.out.println("Local player: " + (localPlayer != null ? localPlayer.name + " (ID: " + localPlayer.id + ")" : "null"));
             
             if (!joinedPlayer.id.equals(localPlayer.id)) {
-                // This is an opponent or opponent character update
                 if (opponent == null) {
-                    // New opponent
                     opponent = joinedPlayer;
                     gameState.setOpponentName(opponent.name);
-                    System.out.println("🎯 New opponent: " + opponent.name + " with character: " + opponent.selectedCharacterId);
                 } else {
-                    // Update existing opponent (character change)
-                    System.out.println("🔄 Character update: " + opponent.name + " changed from " + 
-                                     opponent.selectedCharacterId + " to " + joinedPlayer.selectedCharacterId);
                     opponent.selectedCharacterId = joinedPlayer.selectedCharacterId;
                 }
                 
-                System.out.println("Setting opponent: " + opponent.name + " with character: " + opponent.selectedCharacterId);
                 
-                // Set opponent character based on their selection
                 if (opponent.selectedCharacterId != null) {
                     CharacterConfig config = CharacterConfig.getInstance();
                     CharacterPack opponentCharPack = config.createCharacterPack(
                         opponent.selectedCharacterId,
                         gameState.botBaseX,
                         gameState.groundY,
-                        true  // facing left
+                        true
                     );
                     gameState.setOpponentCharacterPack(opponentCharPack);
-                    // Also update the bot field for rendering compatibility
                     gameState.bot = opponentCharPack;
-                    System.out.println("✓ Successfully set opponent character: " + opponent.selectedCharacterId);
+                    gameState.opponent = opponentCharPack;
                     
-                    // Force UI update to show character change immediately
                     if (gamePanel != null) {
                         gamePanel.repaint();
                     }
                 } else {
-                    System.out.println("⚠ WARNING: Opponent has no character selection, using default");
-                    // Set default character
                     CharacterConfig config = CharacterConfig.getInstance();
                     CharacterPack defaultCharPack = config.createCharacterPack(
                         "medieval_king",
@@ -297,26 +285,26 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
                     );
                     gameState.setOpponentCharacterPack(defaultCharPack);
                     gameState.bot = defaultCharPack;
+                    gameState.opponent = defaultCharPack;
                 }
                 
                 if (opponent.name != null && opponent == joinedPlayer) {
-                    // Only show this for new opponents, not character updates
                     NotificationSystem.showSuccess("Opponent found: " + opponent.name);
                 }
                 
-                // The server will automatically start countdown for full rooms
-                // We just need to wait for COUNTDOWN_START message
             }
-            System.out.println("=== END PLAYER_JOINED DEBUG ===");
         }
     }
     
     private void handleCountdownStart(NetworkMessage message) {
         matchState = MatchState.COUNTDOWN;
-        currentCountdown = 10; // Updated to 10 seconds
+        if (message.data instanceof Integer) {
+            currentCountdown = (Integer) message.data;
+        } else {
+            currentCountdown = 10; // fallback
+        }
         countdownStartTime = System.currentTimeMillis();
-        NotificationSystem.showSuccess("Match starting! Get ready!");
-        System.out.println("Countdown started - switching to COUNTDOWN state with 10 seconds");
+        NotificationSystem.showSuccess("Match starting!");
     }
     
     private void handleCountdownUpdate(NetworkMessage message) {
@@ -324,7 +312,7 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
             int countdown = (Integer) message.data;
             currentCountdown = countdown;
             if (countdown > 0) {
-                NotificationSystem.showWarning("Starting in " + countdown + "...");
+                NotificationSystem.showWarning("Starting in " + countdown);
             }
         }
     }
@@ -335,58 +323,44 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
         if (message.data instanceof String) {
             String firstWord = (String) message.data;
             
-            System.out.println("=== GAME START SYNCHRONIZATION ===");
-            System.out.println("Received first word from server: " + firstWord);
             
-            // Switch to multiplayer mode and start the game like vs bot
             gameState.setMultiplayerMode(true);
             
-            // FORCE set the word and reset all progress
             gameState.setCurrentWord(firstWord);
             gameState.playerIdx = 0;
             gameState.setOpponentIdx(0);
             
-            // Set names properly
             if (localPlayer != null && localPlayer.name != null) {
                 gameState.setPlayerName(localPlayer.name);
-                System.out.println("Set local player name: " + localPlayer.name);
             }
             if (opponent != null && opponent.name != null) {
                 gameState.setOpponentName(opponent.name);
-                System.out.println("Set opponent name: " + opponent.name);
             }
             
-            // Reset health to FULL for both players at game start
+            // Reset all scores and health for fresh match
             gameState.playerHealth = GameConfig.MAX_HEALTH;
             gameState.botHealth = GameConfig.MAX_HEALTH;
+            gameState.wordsCompleted = 0; // Reset GameState score
             
-            // Update local player objects
             if (localPlayer != null) {
                 localPlayer.health = GameConfig.MAX_HEALTH;
-                localPlayer.wordsCompleted = 0;
+                localPlayer.wordsCompleted = 0; // Reset local player score
             }
             if (opponent != null) {
                 opponent.health = GameConfig.MAX_HEALTH;
-                opponent.wordsCompleted = 0;
+                opponent.wordsCompleted = 0; // Reset opponent score
             }
             
-            // Force reset of all game state
             gameState.resetToReady();
             gameState.startGame();
             
-            // Force complete typing progress reset
             gameState.resetTypingProgress();
             
-            // Force UI update
             if (gamePanel != null) {
                 gamePanel.repaint();
             }
             
             NotificationSystem.showSuccess("Fight! Type: " + firstWord);
-            System.out.println("Game synchronized - Word: " + firstWord + ", Local: " + gameState.getPlayerName() + 
-                             ", Opponent: " + gameState.getOpponentName());
-            System.out.println("Health state - Local: " + gameState.playerHealth + ", Opponent: " + gameState.botHealth);
-            System.out.println("=== END GAME START SYNCHRONIZATION ===");
         }
     }
     
@@ -398,81 +372,55 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
     }
     
     private void handlePlayerTyped(NetworkMessage message) {
-        System.out.println("PLAYER_TYPED received from: " + message.playerId + " (local: " + localPlayer.id + ")");
         
         if (message.data instanceof String && !message.playerId.equals(localPlayer.id)) {
             String eventType = (String) message.data;
             if ("WORD_COMPLETE".equals(eventType)) {
-                System.out.println("Opponent completed word - triggering attack animation");
                 
-                // Opponent completed a word - trigger bot attack animation
                 gameState.startBotAttackSequence();
                 
-                // Force UI update to show animation
                 if (gamePanel != null) {
                     gamePanel.repaint();
                 }
                 
-                NotificationSystem.showWarning("Opponent attacked! You took damage!");
+                NotificationSystem.showWarning("Hit taken!");
                 
-                // Health will be updated by ROOM_UPDATE message
             }
         } else if (message.data instanceof String && message.playerId.equals(localPlayer.id)) {
-            // This is our own attack being echoed back - confirm attack
             String eventType = (String) message.data;
             if ("WORD_COMPLETE".equals(eventType)) {
-                System.out.println("Own attack confirmed by server");
                 
-                // Don't update health here - will be handled by ROOM_UPDATE
-                NotificationSystem.showSuccess("You attacked your opponent!");
+                NotificationSystem.showSuccess("Attack hit!");
             }
         }
     }
     
     private void handleGameStateUpdate(NetworkMessage message) {
-        System.out.println("=== GAME_STATE_UPDATE RECEIVED ===");
-        System.out.println("Data type: " + (message.data != null ? message.data.getClass().getSimpleName() : "null"));
         
         if (message.data instanceof String) {
             String newWord = (String) message.data;
             String oldWord = gameState.getCurrentWord();
             
-            System.out.println("Word synchronization: " + oldWord + " -> " + newWord);
             
-            // CRITICAL: Complete reset before setting new word
-            System.out.println("Performing complete word transition reset...");
             
-            // 1. Reset all typing progress FIRST
             gameState.playerIdx = 0;
             gameState.setOpponentIdx(0);
             
-            // 2. Reset typing state completely
             gameState.resetTypingProgress();
             
-            // 3. Clear any visual effects or animations
-            // Temporarily clear current word to force UI refresh
-            gameState.popUntil = 0; // Clear any pop animations
+            gameState.popUntil = 0;
             
-            // 4. NOW set the new word
             gameState.setCurrentWord(newWord);
             
-            // 5. Force immediate UI update
             if (gamePanel != null) {
                 gamePanel.requestFocusInWindow();
                 gamePanel.repaint();
             }
             
-            System.out.println("✓ Word synchronized successfully: " + newWord);
-            System.out.println("    Local progress: " + gameState.playerIdx);
-            System.out.println("    Opponent progress: " + gameState.getOpponentIdx());
             
-            // Removed: NotificationSystem.showInfo("New word: " + newWord); - too cluttered
         } else if (message.data instanceof GameRoom) {
-            // Legacy support for GameRoom updates
             GameRoom room = (GameRoom) message.data;
-            System.out.println("Legacy GameRoom update - current word: " + room.currentWord);
             
-            // Update word if it changed with full sync
             if (room.currentWord != null && !room.currentWord.equals(gameState.getCurrentWord())) {
                 String oldWord = gameState.getCurrentWord();
                 gameState.setCurrentWord(room.currentWord);
@@ -480,16 +428,12 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
                 gameState.setOpponentIdx(0);
                 gameState.resetTypingProgress();
                 
-                // Force UI update
                 if (gamePanel != null) {
                     gamePanel.repaint();
                 }
                 
-                // Removed: NotificationSystem.showInfo("New word: " + room.currentWord); - too cluttered
-                System.out.println("Legacy word synchronized: " + oldWord + " -> " + room.currentWord);
             }
             
-            // Update health from room state
             for (Player serverPlayer : room.players) {
                 if (serverPlayer.id.equals(localPlayer.id)) {
                     gameState.playerHealth = serverPlayer.health;
@@ -502,41 +446,16 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
                 }
             }
             
-            System.out.println("Legacy health sync - Local: " + gameState.playerHealth + 
-                             ", Opponent: " + gameState.botHealth);
-        } else {
-            System.out.println("⚠ WARNING: Unknown GAME_STATE_UPDATE data type: " + 
-                             (message.data != null ? message.data.getClass() : "null"));
         }
-        System.out.println("=== END GAME_STATE_UPDATE ===");
     }
     
     private void handleRoomUpdate(NetworkMessage message) {
         if (message.data instanceof GameRoom) {
             GameRoom room = (GameRoom) message.data;
             
-            System.out.println("=== ROOM_UPDATE RECEIVED ===");
-            System.out.println("Players in room: " + room.players.size());
             
-            // Print all server player states
-            System.out.println("SERVER PLAYER STATES:");
-            for (Player serverPlayer : room.players) {
-                System.out.println("  " + serverPlayer.name + " (ID: " + serverPlayer.id + 
-                                 ") Health: " + serverPlayer.health + " Words: " + serverPlayer.wordsCompleted +
-                                 " Character: " + serverPlayer.selectedCharacterId);
-            }
-            
-            // Print current local states BEFORE update
-            System.out.println("LOCAL STATES BEFORE UPDATE:");
-            System.out.println("  Local player health: " + (localPlayer != null ? localPlayer.health : "null") + 
-                             " GameState.playerHealth: " + gameState.playerHealth);
-            System.out.println("  Opponent health: " + (opponent != null ? opponent.health : "null") + 
-                             " GameState.botHealth: " + gameState.botHealth);
-            
-            // Update player health and scores from server
             for (Player serverPlayer : room.players) {
                 if (serverPlayer.id.equals(localPlayer.id)) {
-                    // Update local player
                     int oldHealth = localPlayer.health;
                     int oldGameHealth = gameState.playerHealth;
                     int oldWords = localPlayer.wordsCompleted;
@@ -545,32 +464,23 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
                     localPlayer.wordsCompleted = serverPlayer.wordsCompleted;
                     gameState.playerHealth = serverPlayer.health;
                     
-                    System.out.println("✓ LOCAL PLAYER UPDATE:");
-                    System.out.println("    Health: " + oldHealth + " -> " + serverPlayer.health);
-                    System.out.println("    Words: " + oldWords + " -> " + serverPlayer.wordsCompleted);
-                    System.out.println("    GameState playerHealth: " + oldGameHealth + " -> " + serverPlayer.health);
                 } else {
-                    // Update opponent
                     if (opponent == null) {
-                        System.out.println("⚠ Creating new opponent from server data");
                         opponent = new Player(serverPlayer.id, serverPlayer.name, serverPlayer.selectedCharacterId);
                         gameState.setOpponentName(opponent.name);
                         
-                        // CRITICAL: Set opponent character based on their selection
                         if (opponent.selectedCharacterId != null) {
                             CharacterConfig config = CharacterConfig.getInstance();
                             CharacterPack opponentCharPack = config.createCharacterPack(
                                 opponent.selectedCharacterId,
                                 gameState.botBaseX,
                                 gameState.groundY,
-                                true  // facing left
+                                true
                             );
                             gameState.setOpponentCharacterPack(opponentCharPack);
-                            // Also update the bot field for rendering compatibility
                             gameState.bot = opponentCharPack;
-                            System.out.println("✓ RoomUpdate: Set opponent character to " + opponent.selectedCharacterId);
+                            gameState.opponent = opponentCharPack;
                         } else {
-                            // Fallback to default character
                             CharacterConfig config = CharacterConfig.getInstance();
                             CharacterPack defaultCharPack = config.createCharacterPack(
                                 "medieval_king",
@@ -580,43 +490,31 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
                             );
                             gameState.setOpponentCharacterPack(defaultCharPack);
                             gameState.bot = defaultCharPack;
-                            System.out.println("⚠ RoomUpdate: Used default character for opponent (no selection)");
+                            gameState.opponent = defaultCharPack;
                         }
                     } else {
                         int oldHealth = opponent.health;
                         int oldWords = opponent.wordsCompleted;
                         
-                        // COPY ALL DATA from server player to ensure sync
                         opponent.health = serverPlayer.health;
                         opponent.wordsCompleted = serverPlayer.wordsCompleted;
                         opponent.selectedCharacterId = serverPlayer.selectedCharacterId;
                         
-                        System.out.println("✓ OPPONENT UPDATE:");
-                        System.out.println("    Health: " + oldHealth + " -> " + serverPlayer.health);
-                        System.out.println("    Words: " + oldWords + " -> " + serverPlayer.wordsCompleted);
                     }
                     
                     int oldBotHealth = gameState.botHealth;
                     gameState.botHealth = serverPlayer.health;
-                    System.out.println("✓ BOT HEALTH UPDATE: " + oldBotHealth + " -> " + serverPlayer.health);
                 }
             }
             
-            // Force UI update to reflect health changes
             if (gamePanel != null) {
                 gamePanel.repaint();
             }
             
-            // Print final local states AFTER update
-            System.out.println("LOCAL STATES AFTER UPDATE:");
-            System.out.println("  Local player health: " + (localPlayer != null ? localPlayer.health : "null") + 
-                             " GameState.playerHealth: " + gameState.playerHealth);
-            System.out.println("  Opponent health: " + (opponent != null ? opponent.health : "null") + 
-                             " GameState.botHealth: " + gameState.botHealth);
-            
-            // Check for game over conditions
             if (gameState.playerHealth <= 0) {
-                NotificationSystem.showError("You lost the match!");
+                gameOverResult = "DEFEAT";
+                gameOverOverlayShowing = true;
+                gameOverOverlayStartTime = System.currentTimeMillis();
                 matchState = MatchState.FINISHED;
                 if (localPlayer != null) {
                     String characterUsed = getCurrentSelectedCharacter();
@@ -626,7 +524,9 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
                 scheduleReturnToMainMenu();
                 
             } else if (gameState.botHealth <= 0) {
-                NotificationSystem.showSuccess("You won the match!");
+                gameOverResult = "VICTORY";
+                gameOverOverlayShowing = true;
+                gameOverOverlayStartTime = System.currentTimeMillis();
                 matchState = MatchState.FINISHED;
                 if (localPlayer != null) {
                     String characterUsed = getCurrentSelectedCharacter();
@@ -636,22 +536,17 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
                 scheduleReturnToMainMenu();
             }
             
-            System.out.println("FINAL MATCH STATE: " + matchState);
-            System.out.println("=== END ROOM_UPDATE ===");
         }
     }
     
     private void handleGameOver(NetworkMessage message) {
-        matchState = MatchState.FINISHED;
-        
         if (message.data instanceof String) {
             String result = (String) message.data;
             boolean won = result.equals("WIN");
-            if (won) {
-                NotificationSystem.showSuccess("You won the match!");
-            } else {
-                NotificationSystem.showWarning("You lost the match!");
-            }
+            gameOverResult = won ? "VICTORY" : "DEFEAT";
+            gameOverOverlayShowing = true;
+            gameOverOverlayStartTime = System.currentTimeMillis();
+            matchState = MatchState.FINISHED;
             
             if (localPlayer != null) {
                 String characterUsed = getCurrentSelectedCharacter();
@@ -668,7 +563,9 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
     
     private void handlePlayerDisconnected(NetworkMessage message) {
         if (matchState == MatchState.RACING) {
-            NotificationSystem.showSuccess("Opponent disconnected - You win!");
+            gameOverResult = "VICTORY";
+            gameOverOverlayShowing = true;
+            gameOverOverlayStartTime = System.currentTimeMillis();
             matchState = MatchState.FINISHED;
             
             if (localPlayer != null) {
@@ -679,7 +576,7 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
             
             scheduleReturnToMainMenu();
         } else if (matchState == MatchState.WAITING_FOR_OPPONENT || matchState == MatchState.COUNTDOWN) {
-            NotificationSystem.showWarning("Opponent disconnected - returning to lobby");
+            NotificationSystem.showWarning("Opponent left");
             matchState = MatchState.CONNECTED;
             opponent = null;
             currentRoomId = null;
@@ -690,34 +587,23 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
         }
     }
     
-    /**
-     * Schedules automatic return to main menu after game ends
-     */
+
     private void scheduleReturnToMainMenu() {
-        System.out.println("=== SCHEDULING RETURN TO MAIN MENU ===");
         
         new Thread(() -> {
             try {
-                Thread.sleep(3000); // Wait 3 seconds
+                Thread.sleep(3000);
                 
-                System.out.println("=== RETURNING TO MAIN MENU ===");
                 
-                // Disconnect from server and clean up
-                if (networkClient != null) {
-                    networkClient.disconnect();
-                }
-                
-                // Reset all states to main menu
                 resetToMainMenu();
                 
-                // Force UI update
                 if (gamePanel != null) {
                     SwingUtilities.invokeLater(() -> {
                         gamePanel.repaint();
                     });
                 }
                 
-                NotificationSystem.showInfo("Returned to main menu");
+                NotificationSystem.showInfo("Ready");
                 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -725,64 +611,67 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
         }).start();
     }
     
-    /**
-     * Resets the game state but keeps online mode active for new matches
-     */
+
     public void resetToMainMenu() {
-        System.out.println("=== RESETTING FOR NEW ONLINE MATCH ===");
         
-        // Reset match manager state but KEEP online connection
-        matchState = MatchState.CONNECTED; // Stay connected instead of OFFLINE
+        // Stay connected and ready for next match
+        matchState = MatchState.CONNECTED;
         isHost = false;
         currentRoomId = null;
         opponent = null;
-        localPlayer = null; // Will be recreated on next match
+        localPlayer = null;
         currentCountdown = 0;
         countdownStartTime = 0;
+        gameOverOverlayShowing = false;
+        gameOverResult = "";
+        gameOverOverlayStartTime = 0;
         
-        // Reset game state but KEEP multiplayer mode
+        // Reset game state completely for fresh match
         if (gameState != null) {
-            // DON'T call setMultiplayerMode(false) - stay in online mode
             gameState.resetToReady();
             gameState.setOpponentName("");
             gameState.setPlayerName("");
             gameState.setStatusMessage("Ready for online match");
+            gameState.wordsCompleted = 0; // Reset score completely
             
-            // Reset character animations properly
+            // Reset character animations
             resetCharacterAnimations();
         }
         
-        System.out.println("=== READY FOR NEW ONLINE MATCH ===");
+        // Reset UI to show matchmaking button again
+        OnlineUI.resetToMatchReady();
+        
     }
     
-    /**
-     * Resets character animations to idle state
-     */
+
     private void resetCharacterAnimations() {
         if (gameState != null) {
-            // Reset player character to idle
+
             if (gameState.player != null) {
                 try {
                     gameState.player.setAnim(CharacterPack.Anim.IDLE);
                     gameState.player.x = gameState.playerBaseX;
                     gameState.player.y = gameState.groundY;
                 } catch (Exception e) {
-                    System.out.println("Warning: Could not reset player animation: " + e.getMessage());
                 }
             }
             
-            // Reset bot/opponent character to idle
+
             if (gameState.bot != null) {
                 try {
                     gameState.bot.setAnim(CharacterPack.Anim.IDLE);
                     gameState.bot.x = gameState.botBaseX;
                     gameState.bot.y = gameState.groundY;
                 } catch (Exception e) {
-                    System.out.println("Warning: Could not reset bot animation: " + e.getMessage());
                 }
             }
             
-            // Reset all animation states
+            // Ensure opponent field is synced with bot in multiplayer mode
+            if (gameState.isMultiplayerMode() && gameState.bot != null) {
+                gameState.opponent = gameState.bot;
+            }
+            
+
             gameState.playerSeq = false;
             gameState.botSeq = false;
             gameState.playerPhase = 0;
@@ -794,9 +683,8 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
     
     @Override
     public void onDisconnected() {
-        System.out.println("=== DISCONNECTION EVENT ===");
         
-        // Complete state reset
+
         isConnected = false;
         matchState = MatchState.OFFLINE;
         currentRoomId = null;
@@ -806,7 +694,7 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
         currentCountdown = 0;
         countdownStartTime = 0;
         
-        // Reset game state to offline mode
+
         if (gameState != null) {
             gameState.setMultiplayerMode(false);
             gameState.resetToReady();
@@ -814,20 +702,18 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
             gameState.setPlayerName("");
             gameState.setStatusMessage("");
             
-            // Reset health to default
+
             gameState.playerHealth = GameConfig.MAX_HEALTH;
             gameState.botHealth = GameConfig.MAX_HEALTH;
         }
         
-        // Force UI update
         if (gamePanel != null) {
             SwingUtilities.invokeLater(() -> {
                 gamePanel.repaint();
             });
         }
         
-        NotificationSystem.showWarning("Disconnected from server");
-        System.out.println("=== DISCONNECTION CLEANUP COMPLETE ===");
+        NotificationSystem.showWarning("Disconnected");
     }
     
     public void disconnect() {
@@ -837,7 +723,7 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
         onDisconnected();
     }
     
-    // Getters
+
     public boolean isOnline() { return matchState != MatchState.OFFLINE; }
     public boolean isRacing() { return matchState == MatchState.RACING; }
     public MatchState getMatchState() { return matchState; }
@@ -846,4 +732,22 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
     public String getCurrentRoomId() { return currentRoomId; }
     public int getCurrentCountdown() { return currentCountdown; }
     public long getCountdownStartTime() { return countdownStartTime; }
+    
+    public boolean isGameOverOverlayShowing() {
+        if (!gameOverOverlayShowing) return false;
+        long elapsed = System.currentTimeMillis() - gameOverOverlayStartTime;
+        if (elapsed >= GAME_OVER_OVERLAY_DURATION) {
+            gameOverOverlayShowing = false;
+            return false;
+        }
+        return true;
+    }
+    
+    public String getGameOverResult() {
+        return gameOverResult;
+    }
+    
+    public long getGameOverOverlayStartTime() {
+        return gameOverOverlayStartTime;
+    }
 }

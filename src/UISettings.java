@@ -280,43 +280,8 @@ public class UISettings {
         if (ttsSpeedLevel == level)
             return;
         ttsSpeedLevel = level;
-        if (ttsEnabled) {
-            new Thread(() -> {
-                try {
-                try {
-                    // SlowTTS tts = new SlowTTS("kevin16", ttsRates[ttsSpeedLevel]);
-                    // tts.speak("Hello");
-                    // tts.close();
-                } catch (Exception ignored) {
-                }
-                } catch (Exception ignored) {
-                }
-            }).start();
-        }
     }
 
     public void speakCurrentWord(WordEntry current) {
-        if (ttsEnabled && current != null) {
-            new Thread(() -> {
-                try {
-                try {
-                    // SlowTTS tts = new SlowTTS("kevin16", ttsRates[ttsSpeedLevel]);
-                    // tts.speak(current.word);
-
-                    // if (ttsRepeatEnabled) {
-                    //     try {
-                    //         Thread.sleep(800);
-                    //     } catch (InterruptedException ignored) {
-                    //     }
-                    //     tts.speak(current.word);
-                    // }
-
-                    // tts.close();
-                } catch (Exception ignored) {
-                }
-                } catch (Exception ignored) {
-                }
-            }).start();
-        }
     }
 }

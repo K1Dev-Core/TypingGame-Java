@@ -35,21 +35,18 @@ public class GameRoom implements Serializable {
         this.players.add(host);
         this.isGameStarted = false;
         this.currentWord = "";
-        this.maxPlayers = 2; // 1v1 game
+        this.maxPlayers = 2;
         this.roomState = RoomState.WAITING_FOR_PLAYERS;
         this.countdown = 0;
         this.countdownStartTime = 0;
     }
 
-    // Copy constructor for deep copy
     public GameRoom(GameRoom other) {
         this.id = other.id;
         this.name = other.name;
         
-        // Deep copy players list and player objects
         this.players = new ArrayList<>();
         for (Player p : other.players) {
-            // Create new Player object with all current values
             Player playerCopy = new Player(p.id, p.name, p.selectedCharacterId);
             playerCopy.health = p.health;
             playerCopy.wordsCompleted = p.wordsCompleted;
@@ -59,7 +56,6 @@ public class GameRoom implements Serializable {
             this.players.add(playerCopy);
         }
         
-        // Deep copy host reference
         if (other.host != null) {
             this.host = this.players.stream()
                 .filter(p -> p.id.equals(other.host.id))
@@ -78,10 +74,9 @@ public class GameRoom implements Serializable {
 
     public boolean addPlayer(Player player) {
         if (players.size() < maxPlayers && !isGameStarted) {
-            // Check if player is already in the room
             if (players.stream().anyMatch(p -> p.id.equals(player.id))) {
                 System.out.println("Player " + player.name + " is already in room " + name);
-                return true; // Player already exists, consider it successful
+                return true;
             }
 
             players.add(player);
@@ -105,27 +100,24 @@ public class GameRoom implements Serializable {
         return players.stream().filter(p -> p.id.equals(playerId)).findFirst().orElse(null);
     }
 
-    // Room is full when it reaches max players (2 for 1v1)
     public boolean isFull() {
         return players.size() >= maxPlayers;
     }
 
-    // Start countdown when room is full
     public void startCountdown() {
         if (isFull() && roomState == RoomState.WAITING_FOR_PLAYERS) {
             roomState = RoomState.COUNTDOWN;
-            countdown = 10; // Extended countdown to 10 seconds
+            countdown = 10;
             countdownStartTime = System.currentTimeMillis();
         }
     }
 
-    // Update countdown based on elapsed time
     public boolean updateCountdown() {
         if (roomState != RoomState.COUNTDOWN)
             return false;
 
         long elapsed = System.currentTimeMillis() - countdownStartTime;
-        int newCountdown = 10 - (int) (elapsed / 1000); // Changed from 3 to 10
+        int newCountdown = 10 - (int) (elapsed / 1000);
 
         if (newCountdown != countdown) {
             countdown = Math.max(0, newCountdown);
@@ -133,13 +125,12 @@ public class GameRoom implements Serializable {
                 roomState = RoomState.GAME_STARTED;
                 isGameStarted = true;
                 gameStartTime = System.currentTimeMillis();
-                return true; // Game should start
+                return true;
             }
         }
         return false;
     }
 
-    // Check if game should start
     public boolean shouldStartGame() {
         return roomState == RoomState.GAME_STARTED && isGameStarted;
     }

@@ -57,27 +57,22 @@ public class ClientHandler implements Runnable {
                 "Handling message type: " + message.type + " from player: " + (player != null ? player.name : "null"));
         switch (message.type) {
             case PLAYER_JOIN:
-                // Handle player registration (separate from room joining)
                 if (message.data instanceof Player) {
                     Player playerData = (Player) message.data;
                     
                     if (player == null) {
-                        // PRESERVE ALL PLAYER DATA INCLUDING CHARACTER SELECTION
                         player = new Player(playerData.id, playerData.name, playerData.selectedCharacterId);
                         server.addClient(player.id, this);
                         System.out.println("Registered player: " + player.name + " (ID: " + player.id + 
                                           ") with character: " + player.selectedCharacterId);
-                        // Send confirmation back
                         sendMessage(new NetworkMessage(NetworkMessage.MessageType.PLAYER_JOIN,
                                 player.id, null, "Player registered successfully"));
                     } else {
-                        // Handle character update for existing player
                         if (!playerData.selectedCharacterId.equals(player.selectedCharacterId)) {
                             System.out.println("📡 Character update: " + player.name + " changed from " + 
                                              player.selectedCharacterId + " to " + playerData.selectedCharacterId);
                             player.selectedCharacterId = playerData.selectedCharacterId;
                             
-                            // Update player in room if they're in one
                             if (currentRoomId != null) {
                                 GameRoom room = server.getRoom(currentRoomId);
                                 if (room != null) {
@@ -85,12 +80,10 @@ public class ClientHandler implements Runnable {
                                     if (roomPlayer != null) {
                                         roomPlayer.selectedCharacterId = playerData.selectedCharacterId;
                                         
-                                        // Broadcast character update to all players in room
                                         server.broadcastToRoom(currentRoomId,
                                                 new NetworkMessage(NetworkMessage.MessageType.PLAYER_JOIN,
                                                         player.id, currentRoomId, roomPlayer));
                                         
-                                        // Also send room update to ensure sync
                                         server.broadcastToRoom(currentRoomId,
                                                 new NetworkMessage(NetworkMessage.MessageType.ROOM_UPDATE,
                                                         player.id, currentRoomId, new GameRoom(room)));
@@ -115,11 +108,9 @@ public class ClientHandler implements Runnable {
                     GameRoom joinedRoom = server.getRoom(message.roomId);
                     System.out.println("Player " + player.name + " successfully joined room. Room now has "
                             + joinedRoom.players.size() + " players");
-                    // Send fresh copy of the room
                     sendMessage(new NetworkMessage(NetworkMessage.MessageType.JOIN_ROOM,
                             player.id, currentRoomId, new GameRoom(joinedRoom)));
 
-                    // Notify all players in the room about the new player
                     server.broadcastToRoom(currentRoomId,
                             new NetworkMessage(NetworkMessage.MessageType.PLAYER_JOIN,
                                     player.id, currentRoomId, player));
@@ -137,13 +128,11 @@ public class ClientHandler implements Runnable {
             case CREATE_ROOM:
                 System.out.println("Received CREATE_ROOM request");
                 if (message.data instanceof String) {
-                    // New simple room creation with room name
                     String roomName = (String) message.data;
                     if (player == null) {
-                        // ERROR: This should never happen - player should be registered first
                         System.err.println("WARNING: CREATE_ROOM without registered player! Using fallback...");
                         String playerName = "Player_" + message.playerId.substring(0, 6);
-                        player = new Player(message.playerId, playerName, "medieval_king"); // fallback
+                        player = new Player(message.playerId, playerName, "medieval_king");
                         server.addClient(player.id, this);
                         System.out.println("Created fallback player: " + playerName + " (ID: " + player.id + ")");
                     }
@@ -157,24 +146,25 @@ public class ClientHandler implements Runnable {
                     sendMessage(new NetworkMessage(NetworkMessage.MessageType.CREATE_ROOM,
                             player.id, roomId, roomId));
                     
-                    // Check if room is now full after joining
                     GameRoom room = server.getRoom(roomId);
                     if (room != null && room.isFull()) {
                         System.out.println("Room is now full! Starting countdown...");
                         
-                        // Notify all players about each other
                         for (Player roomPlayer : room.players) {
                             server.broadcastToRoom(roomId,
                                 new NetworkMessage(NetworkMessage.MessageType.PLAYER_JOIN,
                                     null, roomId, roomPlayer));
                         }
                         
-                        // Start countdown
+                        // Broadcast countdown start message
+                        server.broadcastToRoom(roomId, new NetworkMessage(
+                            NetworkMessage.MessageType.COUNTDOWN_START,
+                            null, roomId, room.countdown));
+                        
                         server.scheduleCountdown(roomId);
                     }
 
                 } else if (message.data instanceof GameRoom) {
-                    // Legacy room creation
                     GameRoom roomToCreate = (GameRoom) message.data;
                     if (player == null) {
                         player = roomToCreate.host;
@@ -190,7 +180,6 @@ public class ClientHandler implements Runnable {
                     sendMessage(new NetworkMessage(NetworkMessage.MessageType.CREATE_ROOM,
                             player.id, roomId, new GameRoom(createdRoom)));
 
-                    // Broadcast new room to all connected clients for real-time updates
                     server.broadcastRoomListUpdate();
                 } else {
                     System.err.println("Invalid CREATE_ROOM data type: "
@@ -212,14 +201,12 @@ public class ClientHandler implements Runnable {
                 if (currentRoomId != null) {
                     GameRoom room = server.getRoom(currentRoomId);
                     if (room != null && room.host.id.equals(player.id) && room.players.size() >= 2) {
-                        // Check if room state allows starting
                         if (room.roomState == GameRoom.RoomState.WAITING_FOR_HOST ||
                                 room.roomState == GameRoom.RoomState.WAITING_FOR_PLAYERS) {
                             room.roomState = GameRoom.RoomState.COUNTDOWN;
                             room.countdown = 3;
                             room.countdownStartTime = System.currentTimeMillis();
 
-                            // Notify all players that countdown has started
                             server.broadcastToRoom(currentRoomId,
                                     new NetworkMessage(NetworkMessage.MessageType.COUNTDOWN_START,
                                             player.id, currentRoomId, room.countdown));
@@ -233,27 +220,23 @@ public class ClientHandler implements Runnable {
             case PLAYER_TYPED:
                 if (currentRoomId != null) {
                     if (message.data instanceof String && "WORD_COMPLETE".equals(message.data)) {
-                        // Player completed a word - handle attack logic
                         GameRoom room = server.getRoom(currentRoomId);
                         if (room != null) {
                             System.out.println("=== WORD COMPLETION ATTACK ===");
                             System.out.println("Attacker: " + player.name + " (ID: " + player.id + ") with character: " + player.selectedCharacterId);
                             
-                            // Debug: Print current room state BEFORE changes
                             System.out.println("BEFORE ATTACK - Room players:");
                             for (Player p : room.players) {
                                 System.out.println("  Player: " + p.name + " (ID: " + p.id + ") Health: " + p.health + 
                                                  " Character: " + p.selectedCharacterId + " Words: " + p.wordsCompleted);
                             }
                             
-                            // Update player score who completed the word
                             Player completingPlayer = room.getPlayer(player.id);
                             if (completingPlayer != null) {
                                 completingPlayer.wordsCompleted++;
                                 System.out.println("Updated attacker score to: " + completingPlayer.wordsCompleted);
                             }
                             
-                            // Damage opponent (reduce health)
                             for (Player p : room.players) {
                                 if (!p.id.equals(player.id)) {
                                     int oldHealth = p.health;
@@ -262,32 +245,27 @@ public class ClientHandler implements Runnable {
                                 }
                             }
                             
-                            // Debug: Print current room state AFTER changes
                             System.out.println("AFTER ATTACK - Room players:");
                             for (Player p : room.players) {
                                 System.out.println("  Player: " + p.name + " (ID: " + p.id + ") Health: " + p.health + 
                                                  " Character: " + p.selectedCharacterId + " Words: " + p.wordsCompleted);
                             }
                             
-                            // Generate new word and update room - SINGLE WORD FOR ALL PLAYERS
                             String oldWord = room.currentWord;
                             String newWord = server.getNextWord(room.currentWord);
                             room.currentWord = newWord;
                             System.out.println("Word synchronized for all players: " + oldWord + " -> " + newWord);
                             
-                            // Broadcast attack event FIRST to trigger animations
                             System.out.println("1. Broadcasting PLAYER_TYPED attack message...");
                             server.broadcastToRoom(currentRoomId,
                                     new NetworkMessage(NetworkMessage.MessageType.PLAYER_TYPED,
                                             player.id, currentRoomId, "WORD_COMPLETE"));
                             
-                            // Broadcast new word with explicit progress reset
                             System.out.println("2. Broadcasting GAME_STATE_UPDATE with new word: " + newWord);
                             server.broadcastToRoom(currentRoomId,
                                     new NetworkMessage(NetworkMessage.MessageType.GAME_STATE_UPDATE,
                                             null, currentRoomId, newWord));
                             
-                            // Broadcast updated room state with health and scores
                             System.out.println("3. Broadcasting ROOM_UPDATE with health and scores...");
                             GameRoom roomCopy = new GameRoom(room);
                             server.broadcastToRoom(currentRoomId,
@@ -297,7 +275,6 @@ public class ClientHandler implements Runnable {
                             System.out.println("=== ATTACK SEQUENCE COMPLETE ===");
                         }
                     } else {
-                        // Handle other typing events (legacy support)
                         TypingEvent event = (TypingEvent) message.data;
                         GameRoom room = server.getRoom(currentRoomId);
 
@@ -307,7 +284,6 @@ public class ClientHandler implements Runnable {
                                 roomPlayer.wordsCompleted++;
                                 roomPlayer.wpm = event.wpm;
 
-                                // Damage opponent (reduce health)
                                 for (Player p : room.players) {
                                     if (!p.id.equals(player.id)) {
                                         p.health = Math.max(0, p.health - 1);
@@ -315,21 +291,17 @@ public class ClientHandler implements Runnable {
                                     }
                                 }
 
-                                // Generate new word
                                 String newWord = server.getNextWord(room.currentWord);
                                 room.currentWord = newWord;
                                 
-                                // Broadcast attack event first
                                 server.broadcastToRoom(currentRoomId,
                                         new NetworkMessage(NetworkMessage.MessageType.PLAYER_TYPED,
                                                 player.id, currentRoomId, "WORD_COMPLETE"));
                                 
-                                // Broadcast new word
                                 server.broadcastToRoom(currentRoomId,
                                         new NetworkMessage(NetworkMessage.MessageType.GAME_STATE_UPDATE,
                                                 null, currentRoomId, newWord));
                                 
-                                // Broadcast updated room state with health and scores
                                 server.broadcastToRoom(currentRoomId,
                                         new NetworkMessage(NetworkMessage.MessageType.ROOM_UPDATE,
                                                 null, currentRoomId, new GameRoom(room)));
@@ -350,7 +322,6 @@ public class ClientHandler implements Runnable {
                 break;
 
             case PLAYER_PROGRESS:
-                // Broadcast player progress to other players in the room
                 if (currentRoomId != null && message.data instanceof Integer) {
                     server.broadcastToRoom(currentRoomId,
                             new NetworkMessage(NetworkMessage.MessageType.PLAYER_PROGRESS,
