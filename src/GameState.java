@@ -286,8 +286,8 @@ public class GameState implements StateManager {
             return;
         }
 
-        if (playerSeq) {
-            System.out.println("Bot attack sequence blocked - player attack in progress");
+        if (playerSeq && isMultiplayerMode) {
+            System.out.println("Bot attack sequence blocked - player attack in progress (multiplayer)");
             return;
         }
 
@@ -304,8 +304,8 @@ public class GameState implements StateManager {
             return;
         }
 
-        if (botSeq) {
-            System.out.println("Player attack sequence blocked - bot attack in progress");
+        if (botSeq && isMultiplayerMode) {
+            System.out.println("Player attack sequence blocked - bot attack in progress (multiplayer)");
             pendingNextWord = true;
             return;
         }

@@ -369,7 +369,7 @@ public class TypingGameServer {
 
         for (GameRoom room : rooms.values()) {
             System.out.println("  Room: " + room.name + " State: " + room.roomState + " Players: " + room.players.size());
-            if (room.roomState == GameRoom.RoomState.WAITING_FOR_PLAYERS) {
+            if (room.roomState == GameRoom.RoomState.WAITING_FOR_PLAYERS && room.players.size() == 1) {
                 waitingCount += room.players.size();
                 System.out.println("    Added " + room.players.size() + " waiting players from room " + room.name);
             }
