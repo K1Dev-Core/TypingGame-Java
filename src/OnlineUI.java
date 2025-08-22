@@ -1,24 +1,26 @@
+
 import java.awt.*;
 import java.awt.geom.RoundRectangle2D;
 import shared.Player;
 
 public class OnlineUI {
+
     private static String playerName = null;
     private static boolean showNameInput = false;
     private static boolean showMatchmakingButton = false;
     private static boolean showExitConfirmation = false;
     private static StringBuilder nameBuffer = new StringBuilder();
-    
+
     public static void setPlayerName(String name) {
         if (name != null && !name.trim().isEmpty()) {
             playerName = name.trim();
         }
     }
-    
+
     public static String getPlayerName() {
         return playerName;
     }
-    
+
     public static void enterOnlineMode() {
         if (playerName == null) {
             showNameInput = true;
@@ -28,20 +30,22 @@ public class OnlineUI {
             NotificationSystem.showInfo("Press + button to find a match!");
         }
     }
-    
+
     public static void startOnlineMode() {
         if (playerName == null) {
             showNameInput = true;
             NotificationSystem.showInfo("Enter your name and press Enter");
             return;
         }
-        
+
         OnlineMatchManager.getInstance().startMatchmaking(playerName);
     }
-    
+
     public static void handleNameInput(char c) {
-        if (!showNameInput) return;
-        
+        if (!showNameInput) {
+            return;
+        }
+
         if (c == '\n' || c == '\r') {
             if (nameBuffer.length() > 0) {
                 String name = nameBuffer.toString().trim();
@@ -50,24 +54,23 @@ public class OnlineUI {
                     nameBuffer.setLength(0);
                     showNameInput = false;
                     showMatchmakingButton = true;
-                    
+
                     PlayerDatabase.recordOnlineLogin(name);
-                    
-                    
+
                     OnlineMatchManager manager = OnlineMatchManager.getInstance();
                     if (!manager.isConnected()) {
                         manager.connectToServer();
                         NotificationSystem.showInfo("Connecting to online server...");
                     }
-                    
+
                     PlayerDatabase.PlayerRecord record = PlayerDatabase.getPlayerRecord(name);
                     if (record != null) {
                         double winRate = record.getWinRate() * 100;
                         int totalMatches = record.onlineWins + record.onlineLosses;
                         String statsMessage = String.format(
-                            "Welcome %s! Online Stats: Logins: %d | Score: %d | WPM: %d | Matches: %d | Win Rate: %.1f%% | Character: %s",
-                            name, record.onlineLogins, record.bestScore, record.bestWPM, 
-                            totalMatches, winRate, record.favoriteCharacter.replace("_", " ")
+                                "Welcome %s! Online Stats: Logins: %d | Score: %d | WPM: %d | Matches: %d | Win Rate: %.1f%% | Character: %s",
+                                name, record.onlineLogins, record.bestScore, record.bestWPM,
+                                totalMatches, winRate, record.favoriteCharacter.replace("_", " ")
                         );
                         NotificationSystem.showSuccess(statsMessage);
                     } else {
@@ -94,17 +97,16 @@ public class OnlineUI {
             }
         }
     }
-    
+
     public static void renderOnlineUI(Graphics2D g2, int screenWidth, int screenHeight) {
         OnlineMatchManager manager = OnlineMatchManager.getInstance();
         OnlineMatchManager.MatchState state = manager.getMatchState();
-        
-        
+
         long now = System.currentTimeMillis();
-        if (now % 2000 < 50) { 
+        if (now % 2000 < 50) {
             System.out.println("UI State: " + state + ", Countdown: " + manager.getCurrentCountdown());
         }
-        
+
         switch (state) {
             case OFFLINE:
                 if (showMatchmakingButton) {
@@ -136,42 +138,42 @@ public class OnlineUI {
                 renderMatchFinished(g2, screenWidth, screenHeight);
                 break;
         }
-        
+
         if (showNameInput) {
             renderNameInput(g2, screenWidth, screenHeight);
         }
-        
+
         if (showExitConfirmation) {
             renderExitConfirmation(g2, screenWidth, screenHeight);
         }
-        
+
         if (manager.isGameOverOverlayShowing()) {
             renderGameOverOverlay(g2, screenWidth, screenHeight);
         }
     }
-    
+
     public static void showExitConfirmation() {
         showExitConfirmation = true;
     }
-    
+
     public static boolean isShowingExitConfirmation() {
         return showExitConfirmation;
     }
-    
+
     private static void renderNameInput(Graphics2D g2, int screenWidth, int screenHeight) {
         int panelWidth = 350;
         int panelHeight = 150;
         int x = (screenWidth - panelWidth) / 2;
         int y = (screenHeight - panelHeight) / 2;
-        
+
         RoundRectangle2D panel = new RoundRectangle2D.Float(x, y, panelWidth, panelHeight, 10, 10);
         g2.setColor(new Color(20, 20, 20, 250));
         g2.fill(panel);
-        
+
         g2.setColor(new Color(80, 80, 80));
         g2.setStroke(new BasicStroke(2));
         g2.draw(panel);
-        
+
         Font titleFont = new Font("Arial", Font.BOLD, 16);
         g2.setFont(titleFont);
         g2.setColor(Color.WHITE);
@@ -179,23 +181,23 @@ public class OnlineUI {
         FontMetrics titleFm = g2.getFontMetrics();
         int titleX = x + (panelWidth - titleFm.stringWidth(title)) / 2;
         g2.drawString(title, titleX, y + 30);
-        
+
         int fieldWidth = 250;
         int fieldHeight = 30;
         int fieldX = x + (panelWidth - fieldWidth) / 2;
         int fieldY = y + 50;
-        
+
         g2.setColor(new Color(40, 40, 40));
         g2.fillRoundRect(fieldX, fieldY, fieldWidth, fieldHeight, 5, 5);
-        
+
         g2.setColor(new Color(120, 120, 120));
         g2.setStroke(new BasicStroke(1));
         g2.drawRoundRect(fieldX, fieldY, fieldWidth, fieldHeight, 5, 5);
-        
+
         Font inputFont = new Font("Arial", Font.PLAIN, 14);
         g2.setFont(inputFont);
         g2.setColor(Color.WHITE);
-        
+
         String displayText = nameBuffer.toString();
         if (displayText.isEmpty()) {
             g2.setColor(new Color(120, 120, 120));
@@ -203,48 +205,48 @@ public class OnlineUI {
         } else {
             g2.drawString(displayText, fieldX + 10, fieldY + 20);
         }
-        
+
         if (System.currentTimeMillis() % 1000 < 500) {
             int cursorX = fieldX + 10 + g2.getFontMetrics().stringWidth(displayText);
             g2.setColor(Color.WHITE);
             g2.drawLine(cursorX, fieldY + 8, cursorX, fieldY + 22);
         }
-        
+
         Font instrFont = new Font("Arial", Font.PLAIN, 12);
         g2.setFont(instrFont);
         g2.setColor(new Color(160, 160, 160));
-        
+
         String[] instructions = {
             "Press ENTER to confirm",
             "Press E to cancel"
         };
-        
+
         for (int i = 0; i < instructions.length; i++) {
             FontMetrics instrFm = g2.getFontMetrics();
             int instrX = x + (panelWidth - instrFm.stringWidth(instructions[i])) / 2;
             g2.drawString(instructions[i], instrX, y + panelHeight - 30 + (i * 15));
         }
-        
+
         g2.setColor(new Color(120, 120, 120));
         String countText = nameBuffer.length() + "/20";
         FontMetrics countFm = g2.getFontMetrics();
         g2.drawString(countText, fieldX + fieldWidth - countFm.stringWidth(countText) - 5, fieldY - 5);
     }
-    
+
     private static void renderExitConfirmation(Graphics2D g2, int screenWidth, int screenHeight) {
         int panelWidth = 380;
         int panelHeight = 160;
         int x = (screenWidth - panelWidth) / 2;
         int y = (screenHeight - panelHeight) / 2;
-        
+
         RoundRectangle2D panel = new RoundRectangle2D.Float(x, y, panelWidth, panelHeight, 10, 10);
         g2.setColor(new Color(20, 20, 20, 250));
         g2.fill(panel);
-        
+
         g2.setColor(new Color(80, 80, 80));
         g2.setStroke(new BasicStroke(2));
         g2.draw(panel);
-        
+
         Font titleFont = new Font("Arial", Font.BOLD, 18);
         g2.setFont(titleFont);
         g2.setColor(Color.WHITE);
@@ -252,7 +254,7 @@ public class OnlineUI {
         FontMetrics titleFm = g2.getFontMetrics();
         int titleX = x + (panelWidth - titleFm.stringWidth(title)) / 2;
         g2.drawString(title, titleX, y + 35);
-        
+
         Font msgFont = new Font("Arial", Font.PLAIN, 14);
         g2.setFont(msgFont);
         g2.setColor(new Color(180, 180, 180));
@@ -260,41 +262,41 @@ public class OnlineUI {
         FontMetrics msgFm = g2.getFontMetrics();
         int msgX = x + (panelWidth - msgFm.stringWidth(message)) / 2;
         g2.drawString(message, msgX, y + 65);
-        
+
         int buttonWidth = 80;
         int buttonHeight = 30;
         int buttonY = y + 85;
         int yesX = x + (panelWidth / 2) - buttonWidth - 10;
         int noX = x + (panelWidth / 2) + 10;
-        
+
         RoundRectangle2D yesButton = new RoundRectangle2D.Float(yesX, buttonY, buttonWidth, buttonHeight, 5, 5);
         g2.setColor(new Color(60, 60, 60));
         g2.fill(yesButton);
         g2.setColor(new Color(140, 140, 140));
         g2.setStroke(new BasicStroke(1));
         g2.draw(yesButton);
-        
+
         RoundRectangle2D noButton = new RoundRectangle2D.Float(noX, buttonY, buttonWidth, buttonHeight, 5, 5);
         g2.setColor(new Color(60, 60, 60));
         g2.fill(noButton);
         g2.setColor(new Color(140, 140, 140));
         g2.draw(noButton);
-        
+
         Font buttonFont = new Font("Arial", Font.BOLD, 13);
         g2.setFont(buttonFont);
         g2.setColor(Color.WHITE);
-        
+
         String yesText = "Yes";
         FontMetrics fm = g2.getFontMetrics();
         int yesTextX = yesX + (buttonWidth - fm.stringWidth(yesText)) / 2;
         int yesTextY = buttonY + (buttonHeight + fm.getAscent()) / 2 - 2;
         g2.drawString(yesText, yesTextX, yesTextY);
-        
+
         String noText = "No";
         int noTextX = noX + (buttonWidth - fm.stringWidth(noText)) / 2;
         int noTextY = buttonY + (buttonHeight + fm.getAscent()) / 2 - 2;
         g2.drawString(noText, noTextX, noTextY);
-        
+
         Font instrFont = new Font("Arial", Font.PLAIN, 11);
         g2.setFont(instrFont);
         g2.setColor(new Color(140, 140, 140));
@@ -303,28 +305,28 @@ public class OnlineUI {
         int instrX = x + (panelWidth - instrFm.stringWidth(instr)) / 2;
         g2.drawString(instr, instrX, y + panelHeight - 15);
     }
-    
+
     private static void renderStatus(Graphics2D g2, int screenWidth, int screenHeight, String message, Color color) {
         Font font = new Font("Arial", Font.BOLD, 16);
         g2.setFont(font);
         g2.setColor(color);
-        
+
         FontMetrics fm = g2.getFontMetrics();
         int x = (screenWidth - fm.stringWidth(message)) / 2;
         int y = 50;
         g2.drawString(message, x, y);
     }
-    
+
     private static void renderWaitingForOpponent(Graphics2D g2, int screenWidth, int screenHeight) {
         renderStatus(g2, screenWidth, screenHeight, "Searching for opponent...", Color.YELLOW);
-        
+
         long time = System.currentTimeMillis();
         int dots = (int) ((time / 500) % 4);
         String dotString = "";
         for (int i = 0; i < dots; i++) {
             dotString += ".";
         }
-        
+
         Font font = new Font("Arial", Font.BOLD, 16);
         g2.setFont(font);
         g2.setColor(Color.YELLOW);
@@ -332,62 +334,59 @@ public class OnlineUI {
         int x = screenWidth / 2 + fm.stringWidth("Searching for opponent") / 2;
         g2.drawString(dotString, x, 50);
     }
-    
 
-
-    
     private static void renderRaceInfo(Graphics2D g2, int screenWidth, int screenHeight) {
         g2.setColor(Color.YELLOW);
         g2.setFont(new Font("Arial", Font.PLAIN, 12));
         g2.drawString("Online Match", screenWidth / 2 - 40, screenHeight - 40);
     }
-    
+
     private static void renderMatchFinished(Graphics2D g2, int screenWidth, int screenHeight) {
         renderStatus(g2, screenWidth, screenHeight, "Match finished! Returning to menu...", Color.CYAN);
     }
-    
+
     public static boolean handleClick(int x, int y, int screenWidth, int screenHeight) {
         if (showExitConfirmation) {
             return handleExitConfirmationClick(x, y, screenWidth, screenHeight);
         }
-        
+
         OnlineMatchManager manager = OnlineMatchManager.getInstance();
-        
-        if ((manager.getMatchState() == OnlineMatchManager.MatchState.OFFLINE ||
-             manager.getMatchState() == OnlineMatchManager.MatchState.CONNECTED ||
-             manager.getMatchState() == OnlineMatchManager.MatchState.WAITING_FOR_OPPONENT) &&
-            showMatchmakingButton && handleMatchmakingButtonClick(x, y, screenWidth, screenHeight)) {
+
+        if ((manager.getMatchState() == OnlineMatchManager.MatchState.OFFLINE
+                || manager.getMatchState() == OnlineMatchManager.MatchState.CONNECTED
+                || manager.getMatchState() == OnlineMatchManager.MatchState.WAITING_FOR_OPPONENT)
+                && showMatchmakingButton && handleMatchmakingButtonClick(x, y, screenWidth, screenHeight)) {
             return true;
         }
-        
+
         return false;
     }
-    
+
     private static boolean handleExitConfirmationClick(int x, int y, int screenWidth, int screenHeight) {
         int panelWidth = 380;
         int panelHeight = 160;
         int panelX = (screenWidth - panelWidth) / 2;
         int panelY = (screenHeight - panelHeight) / 2;
-        
+
         int buttonWidth = 80;
         int buttonHeight = 30;
         int buttonY = panelY + 85;
         int yesX = panelX + (panelWidth / 2) - buttonWidth - 10;
         int noX = panelX + (panelWidth / 2) + 10;
-        
+
         if (x >= yesX && x <= yesX + buttonWidth && y >= buttonY && y <= buttonY + buttonHeight) {
             confirmExitOnlineMode();
             return true;
         }
-        
+
         if (x >= noX && x <= noX + buttonWidth && y >= buttonY && y <= buttonY + buttonHeight) {
             showExitConfirmation = false;
             return true;
         }
-        
+
         return false;
     }
-    
+
     public static void handleExitConfirmationKey(char key) {
         if (key == 'y' || key == 'Y') {
             confirmExitOnlineMode();
@@ -395,14 +394,14 @@ public class OnlineUI {
             showExitConfirmation = false;
         }
     }
-    
+
     private static void confirmExitOnlineMode() {
         showExitConfirmation = false;
         exitOnlineMode();
         playerName = null;
         showMatchmakingButton = false;
     }
-    
+
     public static void exitOnlineMode() {
         OnlineMatchManager.getInstance().disconnect();
         showNameInput = false;
@@ -410,11 +409,11 @@ public class OnlineUI {
         nameBuffer.setLength(0);
         NotificationSystem.showInfo("Returned to offline mode");
     }
-    
+
     public static boolean isShowingNameInput() {
         return showNameInput;
     }
-    
+
     public static void resetToMatchReady() {
         if (playerName != null) {
             showMatchmakingButton = true;
@@ -422,46 +421,46 @@ public class OnlineUI {
             NotificationSystem.showInfo("Ready for next match! Press + to find opponent");
         }
     }
-    
+
     private static void renderMatchmakingButton(Graphics2D g2, int screenWidth, int screenHeight) {
         int leftMargin = 20;
         int rightMargin = 40;
         int gapFromWord = 48;
         int cx = screenWidth / 2;
-        
+
         int estimatedBotX = cx + 240;
         int estimatedBotY = screenHeight - 60 - 120;
-        
+
         OnlineMatchManager manager = OnlineMatchManager.getInstance();
         boolean isWaiting = manager.getMatchState() == OnlineMatchManager.MatchState.WAITING_FOR_OPPONENT;
-        
+
         int buttonSize = 70;
         int buttonX = estimatedBotX - buttonSize / 2;
         int buttonY = estimatedBotY - buttonSize / 2;
-        
+
         Color primaryColor = isWaiting ? new Color(220, 50, 50) : new Color(50, 205, 50);
         Color glowColor = isWaiting ? new Color(255, 100, 100) : new Color(100, 255, 100);
-        
+
         for (int i = 20; i >= 0; i -= 3) {
             int alpha = 30 - i;
             g2.setColor(new Color(glowColor.getRed(), glowColor.getGreen(), glowColor.getBlue(), alpha));
             g2.fillOval(buttonX - i, buttonY - i, buttonSize + (i * 2), buttonSize + (i * 2));
         }
-        
+
         g2.setColor(primaryColor);
         g2.fillOval(buttonX, buttonY, buttonSize, buttonSize);
-        
+
         long time = System.currentTimeMillis();
-        float borderAlpha = 0.7f + 0.3f * (float)Math.sin(time * 0.008);
-        g2.setColor(new Color(255, 255, 255, (int)(255 * borderAlpha)));
+        float borderAlpha = 0.7f + 0.3f * (float) Math.sin(time * 0.008);
+        g2.setColor(new Color(255, 255, 255, (int) (255 * borderAlpha)));
         g2.setStroke(new BasicStroke(3));
         g2.drawOval(buttonX, buttonY, buttonSize, buttonSize);
-        
+
         g2.setColor(Color.WHITE);
         g2.setStroke(new BasicStroke(4));
         int centerX = buttonX + buttonSize / 2;
         int centerY = buttonY + buttonSize / 2;
-        
+
         if (isWaiting) {
             int crossSize = 18;
             g2.drawLine(centerX - crossSize, centerY - crossSize, centerX + crossSize, centerY + crossSize);
@@ -471,37 +470,53 @@ public class OnlineUI {
             g2.drawLine(centerX - crossSize, centerY, centerX + crossSize, centerY);
             g2.drawLine(centerX, centerY - crossSize, centerX, centerY + crossSize);
         }
-        
+
         g2.setFont(new Font("Arial", Font.BOLD, 14));
         String text = isWaiting ? "Click to cancel" : "Click to find match!";
         FontMetrics fm = g2.getFontMetrics();
         int textX = centerX - fm.stringWidth(text) / 2;
         int textY = buttonY + buttonSize + 30;
-        
+
         g2.setColor(new Color(0, 0, 0, 180));
         g2.fillRoundRect(textX - 12, textY - 16, fm.stringWidth(text) + 24, 22, 8, 8);
-        
+
         g2.setColor(isWaiting ? new Color(255, 150, 150) : new Color(150, 255, 150));
         g2.drawString(text, textX, textY);
-        
+
+        if (!isWaiting) {
+            int waitingCount = manager.getWaitingPlayersCount();
+            String waitingText = waitingCount + " waiting";
+            Font smallFont = new Font("Arial", Font.PLAIN, 12);
+            g2.setFont(smallFont);
+            FontMetrics smallFm = g2.getFontMetrics();
+            int waitingX = centerX - smallFm.stringWidth(waitingText) / 2;
+            int waitingY = textY + 25;
+
+            g2.setColor(new Color(0, 0, 0, 120));
+            g2.fillRoundRect(waitingX - 8, waitingY - 14, smallFm.stringWidth(waitingText) + 16, 18, 6, 6);
+
+            g2.setColor(new Color(200, 200, 200));
+            g2.drawString(waitingText, waitingX, waitingY);
+        }
+
         if (!isWaiting) {
             double pulseScale = 1.0 + 0.05 * Math.sin(time * 0.01);
         }
-        
+
         matchmakingButtonBounds = new java.awt.Rectangle(
-            buttonX - 15, 
-            buttonY - 15, 
-            buttonSize + 30, 
-            buttonSize + 30
+                buttonX - 15,
+                buttonY - 15,
+                buttonSize + 30,
+                buttonSize + 30
         );
     }
-    
+
     private static java.awt.Rectangle matchmakingButtonBounds = null;
-    
+
     private static boolean handleMatchmakingButtonClick(int x, int y, int screenWidth, int screenHeight) {
         if (matchmakingButtonBounds != null && matchmakingButtonBounds.contains(x, y)) {
             OnlineMatchManager manager = OnlineMatchManager.getInstance();
-            
+
             if (manager.getMatchState() == OnlineMatchManager.MatchState.WAITING_FOR_OPPONENT) {
                 manager.cancelMatchmaking();
                 showMatchmakingButton = true;
@@ -514,21 +529,21 @@ public class OnlineUI {
         }
         return false;
     }
-    
+
     private static void renderSimplifiedCountdownWithProfiles(Graphics2D g2, int screenWidth, int screenHeight) {
         OnlineMatchManager manager = OnlineMatchManager.getInstance();
         Player localPlayer = manager.getLocalPlayer();
         Player opponent = manager.getOpponent();
         int countdown = manager.getCurrentCountdown();
-        
+
         g2.setColor(new Color(0, 0, 0, 150));
         g2.fillRect(0, 0, screenWidth, screenHeight);
-        
+
         if (localPlayer != null && opponent != null) {
             renderSimplePlayerInfo(g2, 50, screenHeight / 2 - 100, localPlayer, true);
             renderSimplePlayerInfo(g2, screenWidth - 250, screenHeight / 2 - 100, opponent, false);
         }
-        
+
         Font vsFont = new Font("Arial", Font.BOLD, 48);
         g2.setFont(vsFont);
         g2.setColor(new Color(255, 215, 0));
@@ -537,7 +552,7 @@ public class OnlineUI {
         int vsX = (screenWidth - vsFm.stringWidth(vsText)) / 2;
         int vsY = screenHeight / 2;
         g2.drawString(vsText, vsX, vsY);
-        
+
         if (countdown > 0) {
             Font countdownFont = new Font("Arial", Font.BOLD, 80);
             g2.setFont(countdownFont);
@@ -558,59 +573,59 @@ public class OnlineUI {
             g2.drawString(fightText, fightX, fightY);
         }
     }
-    
+
     private static void renderSimplePlayerInfo(Graphics2D g2, int x, int y, Player player, boolean isLocal) {
         Font nameFont = new Font("Arial", Font.BOLD, 20);
         g2.setFont(nameFont);
         g2.setColor(isLocal ? new Color(100, 255, 100) : new Color(255, 100, 100));
         g2.drawString(player.name, x, y);
-        
+
         PlayerDatabase.PlayerRecord record = PlayerDatabase.getPlayerRecord(player.name);
+        Font statFont = new Font("Arial", Font.PLAIN, 16);
+        g2.setFont(statFont);
+        g2.setColor(Color.WHITE);
+
         if (record != null) {
-            Font statFont = new Font("Arial", Font.PLAIN, 16);
-            g2.setFont(statFont);
-            
-            g2.setColor(Color.WHITE);
             g2.drawString("Wins: " + record.onlineWins, x, y + 30);
-            
+
             double winRate = record.getWinRate() * 100;
             g2.drawString(String.format("Win Rate: %.1f%%", winRate), x, y + 55);
+        } else {
+            g2.drawString("Wins: --", x, y + 30);
+            g2.drawString("Win Rate: --%", x, y + 55);
         }
     }
-    
 
-    
     private static void renderGameOverOverlay(Graphics2D g2, int screenWidth, int screenHeight) {
         OnlineMatchManager manager = OnlineMatchManager.getInstance();
         String result = manager.getGameOverResult();
         long elapsed = System.currentTimeMillis() - manager.getGameOverOverlayStartTime();
-        
+
         float alpha = 1.0f;
         if (elapsed > 2000) {
             alpha = 1.0f - ((elapsed - 2000) / 1000.0f);
             alpha = Math.max(0.0f, alpha);
         }
-        
-        if (alpha <= 0) return;
-        
-        g2.setColor(new Color(0, 0, 0, (int)(180 * alpha)));
+
+        if (alpha <= 0) {
+            return;
+        }
+
+        g2.setColor(new Color(0, 0, 0, (int) (180 * alpha)));
         g2.fillRect(0, 0, screenWidth, screenHeight);
-        
 
         boolean isVictory = "VICTORY".equals(result);
         Color textColor = isVictory ? new Color(100, 255, 100) : new Color(255, 100, 100);
-        
 
         Font resultFont = new Font("Arial", Font.BOLD, 80);
         g2.setFont(resultFont);
-        
+
         String resultText = isVictory ? "VICTORY!" : "DEFEAT!";
         FontMetrics fm = g2.getFontMetrics();
         int textX = (screenWidth - fm.stringWidth(resultText)) / 2;
         int textY = screenHeight / 2;
-        
 
-        g2.setColor(new Color(textColor.getRed(), textColor.getGreen(), textColor.getBlue(), (int)(255 * alpha)));
+        g2.setColor(new Color(textColor.getRed(), textColor.getGreen(), textColor.getBlue(), (int) (255 * alpha)));
         g2.drawString(resultText, textX, textY);
     }
 }

@@ -24,6 +24,7 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
     private String gameOverResult = "";
     private long gameOverOverlayStartTime = 0;
     private static final int GAME_OVER_OVERLAY_DURATION = 3000;
+    private int waitingPlayersCount = 0;
 
     public enum MatchState {
         OFFLINE, CONNECTING, CONNECTED, WAITING_FOR_OPPONENT, PROFILE_DISPLAY, COUNTDOWN, RACING, FINISHED
@@ -291,6 +292,9 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
                 case PLAYER_DISCONNECTED:
                     handlePlayerDisconnected(message);
                     break;
+                case WAITING_PLAYERS_COUNT:
+                    handleWaitingPlayersCount(message);
+                    break;
                 default:
                     System.err.println("Unknown message type: " + message.type);
                     break;
@@ -515,6 +519,8 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
                 gameState.startGame();
 
                 gameState.resetTypingProgress();
+
+                validateCharacterConsistency();
 
                 if (gamePanel != null) {
                     gamePanel.repaint();
@@ -820,10 +826,31 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
                             int oldHealth = opponent.health;
                             int oldBotHealth = gameState.botHealth;
                             int oldWords = opponent.wordsCompleted;
+                            String oldCharacterId = opponent.selectedCharacterId;
 
                             opponent.health = serverPlayer.health;
                             opponent.wordsCompleted = serverPlayer.wordsCompleted;
                             opponent.selectedCharacterId = serverPlayer.selectedCharacterId;
+
+                            if (oldCharacterId == null || !oldCharacterId.equals(serverPlayer.selectedCharacterId)) {
+                                System.out.println("Opponent character changed from " + oldCharacterId + " to " + serverPlayer.selectedCharacterId);
+                                String newCharId = serverPlayer.selectedCharacterId != null ? serverPlayer.selectedCharacterId : "medieval_king";
+
+                                CharacterConfig config = CharacterConfig.getInstance();
+                                CharacterPack newOpponentCharPack = config.createCharacterPack(
+                                        newCharId,
+                                        gameState.botBaseX,
+                                        gameState.groundY,
+                                        true
+                                );
+                                gameState.setOpponentCharacterPack(newOpponentCharPack);
+                                gameState.bot = newOpponentCharPack;
+                                gameState.opponent = newOpponentCharPack;
+
+                                if (gamePanel != null) {
+                                    gamePanel.repaint();
+                                }
+                            }
 
                             if (gameState.botHealth != serverPlayer.health) {
                                 gameState.botHealth = serverPlayer.health;
@@ -839,6 +866,8 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
                 if (gamePanel != null) {
                     gamePanel.repaint();
                 }
+
+                validateCharacterConsistency();
 
                 boolean validGameState = matchState == MatchState.RACING
                         && gameState.playerHealth > 0 && gameState.botHealth > 0;
@@ -1001,6 +1030,8 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
             resetCharacterAnimations();
         }
 
+        validateCharacterConsistency();
+
         OnlineUI.resetToMatchReady();
     }
 
@@ -1034,7 +1065,6 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
 
     private void resetCharacterAnimations() {
         if (gameState != null) {
-
             if (gameState.player != null) {
                 try {
                     gameState.player.setAnim(CharacterPack.Anim.IDLE);
@@ -1053,8 +1083,35 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
                 }
             }
 
-            if (gameState.isMultiplayerMode() && gameState.bot != null) {
-                gameState.opponent = gameState.bot;
+            if (gameState.isMultiplayerMode()) {
+                if (opponent != null && opponent.selectedCharacterId != null) {
+                    CharacterConfig config = CharacterConfig.getInstance();
+                    try {
+                        CharacterPack validatedOpponentPack = config.createCharacterPack(
+                                opponent.selectedCharacterId,
+                                gameState.botBaseX,
+                                gameState.groundY,
+                                true
+                        );
+                        gameState.setOpponentCharacterPack(validatedOpponentPack);
+                        gameState.bot = validatedOpponentPack;
+                        gameState.opponent = validatedOpponentPack;
+                        validatedOpponentPack.setAnim(CharacterPack.Anim.IDLE);
+                    } catch (Exception e) {
+                        System.err.println("Failed to create opponent character pack, using default: " + e.getMessage());
+                        CharacterPack defaultOpponentPack = config.createCharacterPack(
+                                "medieval_king",
+                                gameState.botBaseX,
+                                gameState.groundY,
+                                true
+                        );
+                        gameState.setOpponentCharacterPack(defaultOpponentPack);
+                        gameState.bot = defaultOpponentPack;
+                        gameState.opponent = defaultOpponentPack;
+                    }
+                } else if (gameState.bot != null) {
+                    gameState.opponent = gameState.bot;
+                }
             }
 
             gameState.playerSeq = false;
@@ -1160,5 +1217,58 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
 
     public long getGameOverOverlayStartTime() {
         return gameOverOverlayStartTime;
+    }
+
+    private void handleWaitingPlayersCount(NetworkMessage message) {
+        if (message.data instanceof Integer) {
+            waitingPlayersCount = (Integer) message.data;
+        }
+    }
+
+    public int getWaitingPlayersCount() {
+        return waitingPlayersCount;
+    }
+
+    private void validateCharacterConsistency() {
+        if (gameState == null || !gameState.isMultiplayerMode()) {
+            return;
+        }
+
+        if (localPlayer != null && localPlayer.selectedCharacterId != null) {
+            String localCharId = localPlayer.selectedCharacterId;
+            if (gameState.player == null || !localCharId.equals(getCurrentSelectedCharacter())) {
+                CharacterConfig config = CharacterConfig.getInstance();
+                CharacterPack correctedLocalPack = config.createCharacterPack(
+                        localCharId,
+                        gameState.playerBaseX,
+                        gameState.groundY,
+                        false
+                );
+                gameState.player = correctedLocalPack;
+                System.out.println("Corrected local player character to: " + localCharId);
+            }
+        }
+
+        if (opponent != null && opponent.selectedCharacterId != null) {
+            String opponentCharId = opponent.selectedCharacterId;
+            if (gameState.bot == null || gameState.opponent == null) {
+                CharacterConfig config = CharacterConfig.getInstance();
+                CharacterPack correctedOpponentPack = config.createCharacterPack(
+                        opponentCharId,
+                        gameState.botBaseX,
+                        gameState.groundY,
+                        true
+                );
+                gameState.setOpponentCharacterPack(correctedOpponentPack);
+                gameState.bot = correctedOpponentPack;
+                gameState.opponent = correctedOpponentPack;
+                System.out.println("Corrected opponent character to: " + opponentCharId);
+            }
+        }
+
+        if (gameState.bot != null && gameState.opponent != gameState.bot) {
+            gameState.opponent = gameState.bot;
+            System.out.println("Synchronized gameState.opponent with gameState.bot");
+        }
     }
 }

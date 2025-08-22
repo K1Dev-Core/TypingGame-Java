@@ -33,6 +33,8 @@ public class TypingGameServer {
 
         System.out.println("TypingGame Server started on port " + PORT);
 
+        countdownScheduler.scheduleAtFixedRate(this::broadcastWaitingPlayersCount, 0, 2, TimeUnit.SECONDS);
+
         while (isRunning) {
             try {
                 Socket clientSocket = serverSocket.accept();
@@ -91,6 +93,7 @@ public class TypingGameServer {
                         scheduleCountdown(room.id);
                     }
 
+                    broadcastWaitingPlayersCount();
                     return room.id;
                 }
             }
@@ -100,6 +103,7 @@ public class TypingGameServer {
         GameRoom room = new GameRoom(roomId, roomName, host);
         rooms.put(roomId, room);
         System.out.println("Created new room: " + roomName + " (ID: " + roomId + ") - waiting for more players");
+        broadcastWaitingPlayersCount();
         return roomId;
     }
 
@@ -138,6 +142,7 @@ public class TypingGameServer {
                     task.cancel(false);
                 }
             }
+            broadcastWaitingPlayersCount();
         }
     }
 
@@ -331,12 +336,36 @@ public class TypingGameServer {
         System.out.println("Broadcasted room list update to " + clients.size() + " clients");
     }
 
+    public void broadcastWaitingPlayersCount() {
+        int waitingCount = getWaitingPlayersCount();
+        NetworkMessage waitingCountMessage = new NetworkMessage(NetworkMessage.MessageType.WAITING_PLAYERS_COUNT,
+                null, null, waitingCount);
+
+        for (ClientHandler client : clients.values()) {
+            try {
+                client.sendMessage(waitingCountMessage);
+            } catch (Exception e) {
+                System.err.println("Error broadcasting waiting players count to client: " + e.getMessage());
+            }
+        }
+    }
+
     public boolean isRunning() {
         return isRunning;
     }
 
     public int getConnectedPlayersCount() {
         return clients.size();
+    }
+
+    public int getWaitingPlayersCount() {
+        int waitingCount = 0;
+        for (GameRoom room : rooms.values()) {
+            if (room.roomState == GameRoom.RoomState.WAITING_FOR_PLAYERS) {
+                waitingCount += room.players.size();
+            }
+        }
+        return waitingCount;
     }
 
     public int getActiveRoomsCount() {

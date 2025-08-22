@@ -1,3 +1,4 @@
+
 import java.util.List;
 import java.util.Random;
 
@@ -274,14 +275,15 @@ public class GameState implements StateManager {
             nextWord();
         } else {
         }
-        
+
         startMs = System.currentTimeMillis();
         state = GameConfig.State.PLAYING;
     }
 
     public void startBotAttackSequence() {
-        if (botSeq || state != GameConfig.State.PLAYING)
+        if (botSeq || state != GameConfig.State.PLAYING) {
             return;
+        }
         botSeq = true;
         botPhase = 0;
         botPhaseUntil = 0;
@@ -298,10 +300,17 @@ public class GameState implements StateManager {
     }
 
     public void updateBotSequence(long now, AnimationController animController) {
-        if (!botSeq)
+        if (!botSeq) {
             return;
+        }
         if (botPhase == 0) {
             CharacterPack attackingBot = isMultiplayerMode && opponent != null ? opponent : bot;
+            if (attackingBot == null) {
+                System.err.println("Attacking bot is null, canceling bot attack sequence");
+                botSeq = false;
+                return;
+            }
+
             attackingBot.x = Math.max(playerBaseX + 64, player.x + 64);
             attackingBot.y = groundY;
             animController.setAnim(attackingBot, CharacterPack.Anim.ATTACK);
@@ -319,9 +328,11 @@ public class GameState implements StateManager {
         } else if (botPhase == 1) {
             if (now >= botPhaseUntil) {
                 CharacterPack attackingBot = isMultiplayerMode && opponent != null ? opponent : bot;
-                attackingBot.x = botBaseX;
-                attackingBot.y = groundY;
-                animController.setAnim(attackingBot, CharacterPack.Anim.IDLE);
+                if (attackingBot != null) {
+                    attackingBot.x = botBaseX;
+                    attackingBot.y = groundY;
+                    animController.setAnim(attackingBot, CharacterPack.Anim.IDLE);
+                }
                 botSeq = false;
 
                 if (pendingGameOver && gameOverWinner.equals("OVER")) {
@@ -337,10 +348,17 @@ public class GameState implements StateManager {
     }
 
     public void updatePlayerSequence(long now, AnimationController animController) {
-        if (!playerSeq)
+        if (!playerSeq) {
             return;
+        }
         if (playerPhase == 0) {
             CharacterPack targetBot = isMultiplayerMode && opponent != null ? opponent : bot;
+            if (targetBot == null) {
+                System.err.println("Target bot is null, canceling player attack sequence");
+                playerSeq = false;
+                return;
+            }
+
             player.x = Math.min(botBaseX - 64, targetBot.x - 64);
             player.y = groundY;
             animController.setAnim(player, CharacterPack.Anim.ATTACK);
@@ -405,15 +423,15 @@ public class GameState implements StateManager {
                 }
 
                 wordsCompleted++;
-                
+
                 if (OnlineMatchManager.getInstance().isRacing()) {
-                 
+
                     if (playerHealth <= 0) {
                         pendingGameOver = true;
                         gameOverWinner = "OVER";
                         System.out.println("Client-side game over detected: Player health is 0");
                     }
-                   
+
                 } else {
                     botHealth = Math.max(0, botHealth - 1);
                     startPlayerAttackSequence();
@@ -473,8 +491,9 @@ public class GameState implements StateManager {
         }
 
         frames++;
-        if (lastFpsTime == 0)
+        if (lastFpsTime == 0) {
             lastFpsTime = now;
+        }
         if (now - lastFpsTime >= 1000) {
             fps = frames;
             frames = 0;
@@ -508,19 +527,19 @@ public class GameState implements StateManager {
         if (state == GameConfig.State.READY) {
             state = GameConfig.State.PLAYING;
             startMs = System.currentTimeMillis();
-            
+
             if (!isMultiplayerMode) {
                 nextWord();
             } else {
             }
-            
+
             if (bgMusic != null) {
                 bgMusic.stop();
                 bgMusic.play();
             }
         }
     }
-    
+
     public void resetTypingProgress() {
         playerIdx = 0;
         opponentIdx = 0;
@@ -531,10 +550,10 @@ public class GameState implements StateManager {
         if (multiplayer && opponent == null) {
             CharacterConfig config = CharacterConfig.getInstance();
             opponent = config.createCharacterPack(
-                "medieval_king",
-                botBaseX,
-                groundY,
-                true
+                    "medieval_king",
+                    botBaseX,
+                    groundY,
+                    true
             );
             bot = opponent;
         }
@@ -547,9 +566,9 @@ public class GameState implements StateManager {
     public void setCurrentWord(String word) {
         if (word != null && !word.isEmpty()) {
             this.currentWord = word;
-            
+
             String[] parts = word.split("\\|");
-            
+
             if (parts.length >= 3) {
                 String mainWord = parts[0].trim();
                 String pronunciation = parts[1].trim();
