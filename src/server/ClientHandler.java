@@ -69,8 +69,11 @@ public class ClientHandler implements Runnable {
                         server.addClient(player.id, this);
                         System.out.println("Registered player: " + player.name + " (ID: " + player.id
                                 + ") with character: " + player.selectedCharacterId);
+                        System.out.println("Server now has " + server.getConnectedPlayersCount() + " connected clients");
                         sendMessage(new NetworkMessage(NetworkMessage.MessageType.PLAYER_JOIN,
                                 player.id, null, "Player registered successfully"));
+
+                        server.broadcastWaitingPlayersCount();
                     } else {
                         if (!playerData.selectedCharacterId.equals(player.selectedCharacterId)) {
                             System.out.println("📡 Character update: " + player.name + " changed from "
@@ -147,6 +150,9 @@ public class ClientHandler implements Runnable {
                     currentRoomId = roomId;
 
                     System.out.println("Room created/joined successfully: " + roomId);
+
+                    server.broadcastWaitingPlayersCount();
+
                     sendMessage(new NetworkMessage(NetworkMessage.MessageType.CREATE_ROOM,
                             player.id, roomId, roomId));
 
@@ -233,87 +239,103 @@ public class ClientHandler implements Runnable {
                     if (message.data instanceof String && "WORD_COMPLETE".equals(message.data)) {
                         GameRoom room = server.getRoom(currentRoomId);
                         if (room != null) {
-                            System.out.println("=== WORD COMPLETION ATTACK ===");
-                            System.out.println("Attacker: " + player.name + " (ID: " + player.id + ") with character: " + player.selectedCharacterId);
 
-                            System.out.println("BEFORE ATTACK - Room players:");
-                            for (Player p : room.players) {
-                                System.out.println("  Player: " + p.name + " (ID: " + p.id + ") Health: " + p.health
-                                        + " Character: " + p.selectedCharacterId + " Words: " + p.wordsCompleted);
-                            }
-
-                            Player completingPlayer = room.getPlayer(player.id);
-                            if (completingPlayer != null) {
-                                completingPlayer.wordsCompleted++;
-                                System.out.println("Updated attacker score to: " + completingPlayer.wordsCompleted);
-                            }
-
-                            for (Player p : room.players) {
-                                if (!p.id.equals(player.id)) {
-                                    int oldHealth = p.health;
-                                    p.health = Math.max(0, p.health - 1);
-                                    System.out.println("DAMAGE APPLIED: Player " + p.name + " health: " + oldHealth + " -> " + p.health);
+                            synchronized (room) {
+                                if (room.roomState != GameRoom.RoomState.GAME_STARTED) {
+                                    System.out.println("Ignoring word completion - game not in progress (state: " + room.roomState + ")");
+                                    return;
                                 }
-                            }
 
-                            System.out.println("AFTER ATTACK - Room players:");
-                            for (Player p : room.players) {
-                                System.out.println("  Player: " + p.name + " (ID: " + p.id + ") Health: " + p.health
-                                        + " Character: " + p.selectedCharacterId + " Words: " + p.wordsCompleted);
-                            }
+                                long currentTime = System.currentTimeMillis();
+                                if (room.lastAttackTime != 0 && (currentTime - room.lastAttackTime) < 800) {
+                                    System.out.println("Attack blocked - too soon after previous attack (" + (currentTime - room.lastAttackTime) + "ms ago)");
+                                    return;
+                                }
 
-                            String oldWord = room.currentWord;
-                            String newWord = server.getNextWord(room.currentWord);
-                            room.currentWord = newWord;
-                            System.out.println("Word synchronized for all players: " + oldWord + " -> " + newWord);
+                                room.lastAttackTime = currentTime;
 
-                            System.out.println("1. Broadcasting PLAYER_TYPED attack message...");
-                            server.broadcastToRoom(currentRoomId,
-                                    new NetworkMessage(NetworkMessage.MessageType.PLAYER_TYPED,
-                                            player.id, currentRoomId, "WORD_COMPLETE"));
+                                System.out.println("=== WORD COMPLETION ATTACK ===");
+                                System.out.println("Attacker: " + player.name + " (ID: " + player.id + ") with character: " + player.selectedCharacterId);
 
-                            System.out.println("2. Broadcasting GAME_STATE_UPDATE with new word: " + newWord);
-                            server.broadcastToRoom(currentRoomId,
-                                    new NetworkMessage(NetworkMessage.MessageType.GAME_STATE_UPDATE,
-                                            null, currentRoomId, newWord));
+                                System.out.println("BEFORE ATTACK - Room players:");
+                                for (Player p : room.players) {
+                                    System.out.println("  Player: " + p.name + " (ID: " + p.id + ") Health: " + p.health
+                                            + " Character: " + p.selectedCharacterId + " Words: " + p.wordsCompleted);
+                                }
 
-                            boolean gameEnded = false;
-                            String winner = null;
-                            for (Player p : room.players) {
-                                if (p.health <= 0) {
-                                    gameEnded = true;
+                                Player completingPlayer = room.getPlayer(player.id);
+                                if (completingPlayer != null) {
+                                    completingPlayer.wordsCompleted++;
+                                    System.out.println("Updated attacker score to: " + completingPlayer.wordsCompleted);
+                                }
 
-                                    for (Player otherPlayer : room.players) {
-                                        if (otherPlayer.health > 0) {
-                                            winner = otherPlayer.id;
-                                            break;
-                                        }
+                                for (Player p : room.players) {
+                                    if (!p.id.equals(player.id)) {
+                                        int oldHealth = p.health;
+                                        p.health = Math.max(0, p.health - 1);
+                                        System.out.println("DAMAGE APPLIED: Player " + p.name + " health: " + oldHealth + " -> " + p.health);
                                     }
-                                    break;
                                 }
-                            }
 
-                            if (gameEnded && winner != null) {
-                                System.out.println("GAME OVER! Winner: " + winner);
-
+                                System.out.println("AFTER ATTACK - Room players:");
                                 for (Player p : room.players) {
-                                    String result = p.id.equals(winner) ? "WIN" : "LOSE";
-                                    server.sendMessageToClient(p.id,
-                                            new NetworkMessage(NetworkMessage.MessageType.GAME_OVER,
-                                                    p.id, currentRoomId, result));
+                                    System.out.println("  Player: " + p.name + " (ID: " + p.id + ") Health: " + p.health
+                                            + " Character: " + p.selectedCharacterId + " Words: " + p.wordsCompleted);
                                 }
-                                room.roomState = GameRoom.RoomState.GAME_ENDED;
-                            } else {
-                                System.out.println("3. Broadcasting simple health updates instead of complex GameRoom...");
-                                for (Player p : room.players) {
-                                    String healthUpdate = p.id + "|" + p.health + "|" + p.wordsCompleted + "|" + p.name;
-                                    server.broadcastToRoom(currentRoomId,
-                                            new NetworkMessage(NetworkMessage.MessageType.PLAYER_PROGRESS,
-                                                    p.id, currentRoomId, healthUpdate));
-                                }
-                            }
 
-                            System.out.println("=== ATTACK SEQUENCE COMPLETE ===");
+                                String oldWord = room.currentWord;
+                                String newWord = server.getNextWord(room.currentWord);
+                                room.currentWord = newWord;
+                                System.out.println("Word synchronized for all players: " + oldWord + " -> " + newWord);
+
+                                System.out.println("1. Broadcasting PLAYER_TYPED attack message...");
+                                server.broadcastToRoom(currentRoomId,
+                                        new NetworkMessage(NetworkMessage.MessageType.PLAYER_TYPED,
+                                                player.id, currentRoomId, "WORD_COMPLETE"));
+
+                                System.out.println("2. Broadcasting GAME_STATE_UPDATE with new word: " + newWord);
+                                server.broadcastToRoom(currentRoomId,
+                                        new NetworkMessage(NetworkMessage.MessageType.GAME_STATE_UPDATE,
+                                                null, currentRoomId, newWord));
+
+                                boolean gameEnded = false;
+                                String winner = null;
+                                for (Player p : room.players) {
+                                    if (p.health <= 0) {
+                                        gameEnded = true;
+
+                                        for (Player otherPlayer : room.players) {
+                                            if (otherPlayer.health > 0) {
+                                                winner = otherPlayer.id;
+                                                break;
+                                            }
+                                        }
+                                        break;
+                                    }
+                                }
+
+                                if (gameEnded && winner != null) {
+                                    System.out.println("GAME OVER! Winner: " + winner);
+
+                                    for (Player p : room.players) {
+                                        String result = p.id.equals(winner) ? "WIN" : "LOSE";
+                                        server.sendMessageToClient(p.id,
+                                                new NetworkMessage(NetworkMessage.MessageType.GAME_OVER,
+                                                        p.id, currentRoomId, result));
+                                    }
+                                    room.roomState = GameRoom.RoomState.GAME_ENDED;
+                                } else {
+                                    System.out.println("3. Broadcasting simple health updates instead of complex GameRoom...");
+                                    for (Player p : room.players) {
+                                        String healthUpdate = p.id + "|" + p.health + "|" + p.wordsCompleted + "|" + p.name;
+                                        server.broadcastToRoom(currentRoomId,
+                                                new NetworkMessage(NetworkMessage.MessageType.PLAYER_PROGRESS,
+                                                        p.id, currentRoomId, healthUpdate));
+                                    }
+                                }
+
+                                System.out.println("=== ATTACK SEQUENCE COMPLETE ===");
+                            }
                         }
                     } else {
                         TypingEvent event = (TypingEvent) message.data;

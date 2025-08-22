@@ -59,6 +59,17 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
             isConnected = true;
             matchState = MatchState.CONNECTED;
             NotificationSystem.showSuccess("Connected!");
+
+            System.out.println("Connected to server, initializing waiting count...");
+            javax.swing.Timer initialDataTimer = new javax.swing.Timer(1000, e -> {
+                if (waitingPlayersCount == 0) {
+                    System.out.println("No waiting count received yet, setting fallback value");
+                    waitingPlayersCount = 1;
+                }
+                ((javax.swing.Timer) e.getSource()).stop();
+            });
+            initialDataTimer.start();
+
             return true;
         } else {
             matchState = MatchState.OFFLINE;
@@ -237,6 +248,17 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
             return;
         }
 
+        if (gameState.botSeq || gameState.opponentTakingHit) {
+            System.out.println("Word completion blocked - opponent is attacking or taking hit");
+            return;
+        }
+
+        if (gameState.playerTakingHit) {
+            System.out.println("Word completion blocked - player is taking hit");
+            return;
+        }
+
+        System.out.println("Starting player attack sequence for word completion");
         gameState.startPlayerAttackSequence();
 
         NetworkMessage wordCompleteMsg = new NetworkMessage(
@@ -519,6 +541,7 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
                 gameState.startGame();
 
                 gameState.resetTypingProgress();
+                gameState.resetCharacterAnimations();
 
                 validateCharacterConsistency();
 
@@ -582,6 +605,7 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
             gameState.resetToReady();
             gameState.startGame();
             gameState.resetTypingProgress();
+            gameState.resetCharacterAnimations();
 
             if (gamePanel != null) {
                 gamePanel.repaint();
@@ -693,6 +717,18 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
             String eventType = (String) message.data;
             if ("WORD_COMPLETE".equals(eventType)) {
 
+                System.out.println("Opponent completed word - starting bot attack sequence");
+
+                if (gameState.playerSeq) {
+                    System.out.println("Canceling player attack - opponent got there first");
+                    gameState.playerSeq = false;
+                    gameState.playerPhase = 0;
+                    if (gameState.player != null) {
+                        gameState.player.x = gameState.playerBaseX;
+                        gameState.player.y = gameState.groundY;
+                    }
+                }
+
                 gameState.startBotAttackSequence();
 
                 if (gamePanel != null) {
@@ -706,6 +742,7 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
             String eventType = (String) message.data;
             if ("WORD_COMPLETE".equals(eventType)) {
 
+                System.out.println("Local player attack confirmed by server");
                 NotificationSystem.showSuccess("Attack hit!");
             }
         }
@@ -1221,11 +1258,16 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
 
     private void handleWaitingPlayersCount(NetworkMessage message) {
         if (message.data instanceof Integer) {
-            waitingPlayersCount = (Integer) message.data;
+            int newCount = (Integer) message.data;
+            System.out.println("Received waiting players count update: " + newCount + " (previous: " + waitingPlayersCount + ")");
+            waitingPlayersCount = newCount;
+        } else {
+            System.err.println("Invalid waiting players count data type: " + (message.data != null ? message.data.getClass() : "null"));
         }
     }
 
     public int getWaitingPlayersCount() {
+        System.out.println("Getting waiting players count: " + waitingPlayersCount);
         return waitingPlayersCount;
     }
 

@@ -33,6 +33,7 @@ public class TypingGameServer {
 
         System.out.println("TypingGame Server started on port " + PORT);
 
+        System.out.println("Starting waiting players count broadcast scheduler...");
         countdownScheduler.scheduleAtFixedRate(this::broadcastWaitingPlayersCount, 0, 2, TimeUnit.SECONDS);
 
         while (isRunning) {
@@ -341,6 +342,8 @@ public class TypingGameServer {
         NetworkMessage waitingCountMessage = new NetworkMessage(NetworkMessage.MessageType.WAITING_PLAYERS_COUNT,
                 null, null, waitingCount);
 
+        System.out.println("Broadcasting waiting players count: " + waitingCount + " to " + clients.size() + " clients");
+
         for (ClientHandler client : clients.values()) {
             try {
                 client.sendMessage(waitingCountMessage);
@@ -348,6 +351,8 @@ public class TypingGameServer {
                 System.err.println("Error broadcasting waiting players count to client: " + e.getMessage());
             }
         }
+
+        System.out.println("Waiting players broadcast completed");
     }
 
     public boolean isRunning() {
@@ -360,11 +365,17 @@ public class TypingGameServer {
 
     public int getWaitingPlayersCount() {
         int waitingCount = 0;
+        System.out.println("Calculating waiting players count - Total rooms: " + rooms.size());
+
         for (GameRoom room : rooms.values()) {
+            System.out.println("  Room: " + room.name + " State: " + room.roomState + " Players: " + room.players.size());
             if (room.roomState == GameRoom.RoomState.WAITING_FOR_PLAYERS) {
                 waitingCount += room.players.size();
+                System.out.println("    Added " + room.players.size() + " waiting players from room " + room.name);
             }
         }
+
+        System.out.println("Total waiting players: " + waitingCount);
         return waitingCount;
     }
 

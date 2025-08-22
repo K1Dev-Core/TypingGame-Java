@@ -282,8 +282,16 @@ public class GameState implements StateManager {
 
     public void startBotAttackSequence() {
         if (botSeq || state != GameConfig.State.PLAYING) {
+            System.out.println("Bot attack sequence blocked - already in progress or game not playing");
             return;
         }
+
+        if (playerSeq) {
+            System.out.println("Bot attack sequence blocked - player attack in progress");
+            return;
+        }
+
+        System.out.println("Starting bot attack sequence");
         botSeq = true;
         botPhase = 0;
         botPhaseUntil = 0;
@@ -291,9 +299,18 @@ public class GameState implements StateManager {
 
     public void startPlayerAttackSequence() {
         if (playerSeq || state != GameConfig.State.PLAYING) {
+            System.out.println("Player attack sequence blocked - already in progress or game not playing");
             pendingNextWord = true;
             return;
         }
+
+        if (botSeq) {
+            System.out.println("Player attack sequence blocked - bot attack in progress");
+            pendingNextWord = true;
+            return;
+        }
+
+        System.out.println("Starting player attack sequence");
         playerSeq = true;
         playerPhase = 0;
         playerPhaseUntil = 0;
@@ -303,6 +320,19 @@ public class GameState implements StateManager {
         if (!botSeq) {
             return;
         }
+
+        if (isMultiplayerMode && playerTakingHit) {
+            System.out.println("Canceling bot attack sequence - player already taking hit");
+            botSeq = false;
+            CharacterPack attackingBot = isMultiplayerMode && opponent != null ? opponent : bot;
+            if (attackingBot != null) {
+                attackingBot.x = botBaseX;
+                attackingBot.y = groundY;
+                animController.setAnim(attackingBot, CharacterPack.Anim.IDLE);
+            }
+            return;
+        }
+
         if (botPhase == 0) {
             CharacterPack attackingBot = isMultiplayerMode && opponent != null ? opponent : bot;
             if (attackingBot == null) {
@@ -351,6 +381,18 @@ public class GameState implements StateManager {
         if (!playerSeq) {
             return;
         }
+
+        if (isMultiplayerMode && opponentTakingHit) {
+            System.out.println("Canceling player attack sequence - opponent already taking hit");
+            playerSeq = false;
+            if (player != null) {
+                player.x = playerBaseX;
+                player.y = groundY;
+                animController.setAnim(player, CharacterPack.Anim.IDLE);
+            }
+            return;
+        }
+
         if (playerPhase == 0) {
             CharacterPack targetBot = isMultiplayerMode && opponent != null ? opponent : bot;
             if (targetBot == null) {
@@ -471,11 +513,13 @@ public class GameState implements StateManager {
 
     private void updateMultiplayerTyping(long now, AnimationController animController) {
         if (playerTakingHit && now >= playerHitUntil) {
+            System.out.println("Player hit animation completed - returning to idle");
             animController.setAnim(player, CharacterPack.Anim.IDLE);
             playerTakingHit = false;
         }
 
         if (opponentTakingHit && now >= opponentHitUntil) {
+            System.out.println("Opponent hit animation completed - returning to idle");
             if (opponent != null) {
                 animController.setAnim(opponent, CharacterPack.Anim.IDLE);
             }
@@ -705,5 +749,47 @@ public class GameState implements StateManager {
 
     @Override
     public void updateGameTime() {
+    }
+
+    public void resetCharacterAnimations() {
+        if (player != null) {
+            player.x = playerBaseX;
+            player.y = groundY;
+        }
+        if (bot != null) {
+            bot.x = botBaseX;
+            bot.y = groundY;
+        }
+        if (opponent != null) {
+            opponent.x = botBaseX;
+            opponent.y = groundY;
+        }
+
+        playerSeq = false;
+        botSeq = false;
+        playerPhase = 0;
+        botPhase = 0;
+        playerTakingHit = false;
+        opponentTakingHit = false;
+        playerHitUntil = 0;
+        opponentHitUntil = 0;
+        showPlayerDamage = false;
+        showBotDamage = false;
+
+        System.out.println("Animation states reset to default positions");
+    }
+
+    public void forceAnimationIdle(AnimationController animController) {
+        if (animController != null) {
+            if (player != null) {
+                animController.setAnim(player, CharacterPack.Anim.IDLE);
+            }
+            if (bot != null) {
+                animController.setAnim(bot, CharacterPack.Anim.IDLE);
+            }
+            if (opponent != null) {
+                animController.setAnim(opponent, CharacterPack.Anim.IDLE);
+            }
+        }
     }
 }

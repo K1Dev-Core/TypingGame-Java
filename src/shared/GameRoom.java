@@ -27,6 +27,7 @@ public class GameRoom implements Serializable {
     public RoomState roomState;
     public int countdown;
     public long countdownStartTime;
+    public long lastAttackTime;
 
     public GameRoom(String id, String name, Player host) {
         this.id = id;
@@ -40,6 +41,7 @@ public class GameRoom implements Serializable {
         this.roomState = RoomState.WAITING_FOR_PLAYERS;
         this.countdown = 0;
         this.countdownStartTime = 0;
+        this.lastAttackTime = 0;
     }
 
     public GameRoom(GameRoom other) {
@@ -73,6 +75,7 @@ public class GameRoom implements Serializable {
         this.roomState = other.roomState;
         this.countdown = other.countdown;
         this.countdownStartTime = other.countdownStartTime;
+        this.lastAttackTime = other.lastAttackTime;
     }
 
     public boolean addPlayer(Player player) {

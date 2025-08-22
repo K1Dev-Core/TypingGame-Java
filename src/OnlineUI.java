@@ -580,19 +580,40 @@ public class OnlineUI {
         g2.setColor(isLocal ? new Color(100, 255, 100) : new Color(255, 100, 100));
         g2.drawString(player.name, x, y);
 
+        System.out.println("Looking up player record for: '" + player.name + "' (isLocal: " + isLocal + ")");
         PlayerDatabase.PlayerRecord record = PlayerDatabase.getPlayerRecord(player.name);
+
+        if (record == null && isLocal) {
+            System.out.println("No record found for local player, creating initial record...");
+            try {
+                PlayerDatabase.recordOnlineLogin(player.name);
+                record = PlayerDatabase.getPlayerRecord(player.name);
+                System.out.println("Created initial record for " + player.name);
+            } catch (Exception e) {
+                System.err.println("Error creating initial record: " + e.getMessage());
+            }
+        }
+
         Font statFont = new Font("Arial", Font.PLAIN, 16);
         g2.setFont(statFont);
         g2.setColor(Color.WHITE);
 
         if (record != null) {
+            System.out.println("Found record for " + player.name + ": wins=" + record.onlineWins + ", total=" + (record.onlineWins + record.onlineLosses));
             g2.drawString("Wins: " + record.onlineWins, x, y + 30);
 
             double winRate = record.getWinRate() * 100;
             g2.drawString(String.format("Win Rate: %.1f%%", winRate), x, y + 55);
         } else {
-            g2.drawString("Wins: --", x, y + 30);
-            g2.drawString("Win Rate: --%", x, y + 55);
+            System.out.println("No record found for player: '" + player.name + "'");
+
+            if (isLocal) {
+                g2.drawString("Wins: 0", x, y + 30);
+                g2.drawString("Win Rate: 0.0%", x, y + 55);
+            } else {
+                g2.drawString("Wins: --", x, y + 30);
+                g2.drawString("Win Rate: --%", x, y + 55);
+            }
         }
     }
 
