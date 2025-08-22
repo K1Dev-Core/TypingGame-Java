@@ -44,6 +44,8 @@ public class AnimationController {
                 % playerCharIds.length;
         applySelectedCharacter();
         playIfAudible(gameState.sClick);
+        
+        OnlineMatchManager.getInstance().updateLocalPlayerCharacter();
     }
 
     public void applySelectedCharacter() {

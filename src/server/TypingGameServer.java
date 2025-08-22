@@ -1,10 +1,10 @@
 package server;
 
-import shared.*;
 import java.io.*;
 import java.net.*;
 import java.util.*;
 import java.util.concurrent.*;
+import shared.*;
 
 public class TypingGameServer {
     private static final int PORT = 8888;
@@ -12,6 +12,7 @@ public class TypingGameServer {
     private boolean isRunning;
     private Map<String, GameRoom> rooms;
     private Map<String, ClientHandler> clients;
+    private Map<String, ScheduledFuture<?>> countdownTasks;
     private WordBank wordBank;
     private ExecutorService threadPool;
     private ScheduledExecutorService countdownScheduler;
@@ -19,6 +20,7 @@ public class TypingGameServer {
     public TypingGameServer() {
         rooms = new ConcurrentHashMap<>();
         clients = new ConcurrentHashMap<>();
+        countdownTasks = new ConcurrentHashMap<>();
         threadPool = Executors.newCachedThreadPool();
         countdownScheduler = Executors.newScheduledThreadPool(2);
         wordBank = new WordBank();
@@ -53,9 +55,45 @@ public class TypingGameServer {
     }
 
     public synchronized String createRoom(String roomName, Player host) {
+        System.out.println("Creating/joining room: " + roomName + " for player: " + host.name);
+        
+        // First, check if there's an existing room with the same name that's not full
+        for (GameRoom room : rooms.values()) {
+            if (room.name.equals(roomName) && 
+                room.roomState == GameRoom.RoomState.WAITING_FOR_PLAYERS &&
+                room.players.size() < room.maxPlayers) {
+                // Join existing room instead of creating new one
+                if (room.addPlayer(host)) {
+                    System.out.println("Player " + host.name + " joined existing room: " + room.name + " (ID: " + room.id + ")");
+                    System.out.println("Room now has " + room.players.size() + "/" + room.maxPlayers + " players");
+                    
+                    // If room is now full, start countdown immediately
+                    if (room.isFull()) {
+                        System.out.println("Room is full! Starting countdown...");
+                        room.roomState = GameRoom.RoomState.COUNTDOWN;
+                        room.countdown = 10; // Extended countdown to 10 seconds
+                        
+                        // Notify all players about each other
+                        for (Player player : room.players) {
+                            broadcastToRoom(room.id, new NetworkMessage(
+                                NetworkMessage.MessageType.PLAYER_JOIN,
+                                null, room.id, player));
+                        }
+                        
+                        // Start countdown
+                        scheduleCountdown(room.id);
+                    }
+                    
+                    return room.id;
+                }
+            }
+        }
+        
+        // Create new room if no suitable room found
         String roomId = UUID.randomUUID().toString().substring(0, 8);
         GameRoom room = new GameRoom(roomId, roomName, host);
         rooms.put(roomId, room);
+        System.out.println("Created new room: " + roomName + " (ID: " + roomId + ") - waiting for more players");
         return roomId;
     }
 
@@ -137,10 +175,20 @@ public class TypingGameServer {
     public String getNextWord() {
         return wordBank.getRandomWord();
     }
+    
+    public String getNextWord(String currentWord) {
+        return wordBank.getRandomWord(currentWord);
+    }
 
     // Schedule countdown for a room
     public void scheduleCountdown(String roomId) {
-        countdownScheduler.scheduleAtFixedRate(() -> {
+        // Cancel any existing countdown for this room
+        ScheduledFuture<?> existingTask = countdownTasks.get(roomId);
+        if (existingTask != null) {
+            existingTask.cancel(false);
+        }
+        
+        ScheduledFuture<?> countdownTask = countdownScheduler.scheduleAtFixedRate(() -> {
             GameRoom room = rooms.get(roomId);
             if (room != null && room.roomState == GameRoom.RoomState.COUNTDOWN) {
                 boolean gameStarted = room.updateCountdown();
@@ -149,13 +197,29 @@ public class TypingGameServer {
                     // Game should start now
                     System.out.println("Game starting in room " + room.name + "!");
 
-                    // Get first word for the game
+                    // Get first word for the game - SAME WORD FOR ALL PLAYERS
                     String firstWord = getNextWord();
                     room.currentWord = firstWord;
+                    
+                    System.out.println("Starting game with word: " + firstWord);
+                    System.out.println("Broadcasting to " + room.players.size() + " players:");
+                    for (Player p : room.players) {
+                        System.out.println("  - " + p.name + " (ID: " + p.id + ")");
+                    }
 
-                    // Notify all players game has started
+                    // Notify all players game has started with the SAME word
                     broadcastToRoom(roomId, new NetworkMessage(NetworkMessage.MessageType.GAME_START,
                             null, roomId, firstWord));
+                    
+                    // Also send initial room state to ensure proper sync
+                    broadcastToRoom(roomId, new NetworkMessage(NetworkMessage.MessageType.ROOM_UPDATE,
+                            null, roomId, new GameRoom(room)));
+                    
+                    // Cancel this countdown task since game has started
+                    ScheduledFuture<?> taskToCancel = countdownTasks.remove(roomId);
+                    if (taskToCancel != null) {
+                        taskToCancel.cancel(false);
+                    }
 
                 } else if (room.countdown > 0) {
                     // Update countdown
@@ -163,8 +227,16 @@ public class TypingGameServer {
                     broadcastToRoom(roomId, new NetworkMessage(NetworkMessage.MessageType.COUNTDOWN_UPDATE,
                             null, roomId, room.countdown));
                 }
+            } else {
+                // Room state changed or room no longer exists, cancel countdown
+                ScheduledFuture<?> taskToCancel = countdownTasks.remove(roomId);
+                if (taskToCancel != null) {
+                    taskToCancel.cancel(false);
+                }
             }
         }, 0, 1, TimeUnit.SECONDS);
+        
+        countdownTasks.put(roomId, countdownTask);
     }
 
     // Broadcast updated room list to all connected clients for real-time updates

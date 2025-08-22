@@ -45,8 +45,28 @@ public class GameRoom implements Serializable {
     public GameRoom(GameRoom other) {
         this.id = other.id;
         this.name = other.name;
-        this.host = other.host;
-        this.players = new ArrayList<>(other.players);
+        
+        // Deep copy players list and player objects
+        this.players = new ArrayList<>();
+        for (Player p : other.players) {
+            // Create new Player object with all current values
+            Player playerCopy = new Player(p.id, p.name, p.selectedCharacterId);
+            playerCopy.health = p.health;
+            playerCopy.wordsCompleted = p.wordsCompleted;
+            playerCopy.wpm = p.wpm;
+            playerCopy.isReady = p.isReady;
+            playerCopy.isAlive = p.isAlive;
+            this.players.add(playerCopy);
+        }
+        
+        // Deep copy host reference
+        if (other.host != null) {
+            this.host = this.players.stream()
+                .filter(p -> p.id.equals(other.host.id))
+                .findFirst()
+                .orElse(null);
+        }
+        
         this.isGameStarted = other.isGameStarted;
         this.currentWord = other.currentWord;
         this.gameStartTime = other.gameStartTime;
@@ -94,7 +114,7 @@ public class GameRoom implements Serializable {
     public void startCountdown() {
         if (isFull() && roomState == RoomState.WAITING_FOR_PLAYERS) {
             roomState = RoomState.COUNTDOWN;
-            countdown = 3;
+            countdown = 10; // Extended countdown to 10 seconds
             countdownStartTime = System.currentTimeMillis();
         }
     }
@@ -105,7 +125,7 @@ public class GameRoom implements Serializable {
             return false;
 
         long elapsed = System.currentTimeMillis() - countdownStartTime;
-        int newCountdown = 3 - (int) (elapsed / 1000);
+        int newCountdown = 10 - (int) (elapsed / 1000); // Changed from 3 to 10
 
         if (newCountdown != countdown) {
             countdown = Math.max(0, newCountdown);

@@ -8,14 +8,6 @@ public class GameRenderer {
     private final GameState gameState;
     private final UISettings uiSettings;
 
-    private static final Color CLR_FLASH = new Color(180, 30, 40, 80);
-    private static final Color CLR_BOX_SHADOW = new Color(0, 0, 0, 70);
-    private static final Color CLR_HUD_PANEL = new Color(0, 0, 0, 120);
-    private static final Color CLR_HUD_TEXT = Color.WHITE;
-    private static final Color CLR_WPM = new Color(100, 200, 255);
-    private static final Color CLR_DONE = new Color(255, 150, 255);
-    private static final Color CLR_TIME = new Color(255, 215, 0);
-
     public GameRenderer(GamePanel gamePanel, GameState gameState, UISettings uiSettings) {
         this.gamePanel = gamePanel;
         this.gameState = gameState;
@@ -27,7 +19,7 @@ public class GameRenderer {
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         long now = System.currentTimeMillis();
         if (now < gameState.flashUntil) {
-            g2.setColor(CLR_FLASH);
+            g2.setColor(UIConfig.FLASH_COLOR);
             g2.fillRect(0, 0, gamePanel.getWidth(), gamePanel.getHeight());
         }
 
@@ -41,12 +33,9 @@ public class GameRenderer {
         g2.translate(shakeX, shakeY);
 
         try {
-            if (gameState.isShowOnlineUI()) {
-                drawOnlineUI(g2);
-            } else {
-                // Use opponent character pack if available in multiplayer, otherwise default
-                // bot
-                // Always use bot character for opponent (already faces left)
+            OnlineMatchManager manager = OnlineMatchManager.getInstance();
+            // Hide bot character when online mode is active (after name entry)
+            if (!manager.isOnline() || (manager.isOnline() && OnlineUI.getPlayerName() == null)) {
                 gameState.bot.draw(g2, gameState.CHAR_SCALE);
             }
         } catch (Throwable ignored) {
@@ -62,14 +51,27 @@ public class GameRenderer {
         drawWord(g2, now);
         drawFooterInfo(g2);
         if (gameState.state != GameConfig.State.PLAYING) {
-            drawScoreInfo(g2);
+            if (OnlineMatchManager.getInstance().isOnline()) {
+                // Show online player statistics when in online mode
+                drawOnlinePlayerStats(g2);
+            } else {
+                // Show regular score info in offline mode
+                drawScoreInfo(g2);
+            }
         }
         if (gameState.state == GameConfig.State.PLAYING) {
-            drawComboEffect(g2);
-            drawDamageText(g2, now);
+            EffectRenderer.renderComboEffect(g2, gameState.comboEffect, uiSettings.fontBold20, uiSettings.fontPlain16);
+            EffectRenderer.renderDamageText(g2, gameState, uiSettings.fontBold20, now);
         }
-        gameState.hit.draw(g2);
+        EffectRenderer.renderHitEffect(g2, gameState.hit);
 
+        // Draw notification system
+        NotificationSystem.update();
+        NotificationSystem.render(g2, gamePanel.getWidth(), gamePanel.getHeight());
+        
+        // Draw online UI
+        OnlineUI.renderOnlineUI(g2, gamePanel.getWidth(), gamePanel.getHeight());
+        
         if (uiSettings.showSettings)
             drawSettingsOverlay(g2);
 
@@ -89,30 +91,33 @@ public class GameRenderer {
         double acc = 100.0;
 
         if (gameState.state == GameConfig.State.PLAYING) {
-            drawGameHUD(g2, mm, ss, wpm, acc);
-            drawHealthBars(g2);
+            // Use different HUD based on online/offline mode
+            if (OnlineMatchManager.getInstance().isRacing()) {
+                // Online multiplayer HUD
+                OnlineHUD.renderOnlineHUD(g2, gameState, uiSettings, gamePanel.getWidth(), gamePanel.getHeight());
+            } else {
+                // Offline bot mode HUD
+                drawGameHUD(g2, mm, ss, wpm, acc);
+                drawHealthBars(g2);
+            }
         }
 
-        g2.setFont(uiSettings.fontSmall12);
-        g2.setColor(CLR_HUD_TEXT);
-        g2.drawString("FPS: " + gameState.fps, gamePanel.getWidth() - 75, gamePanel.getHeight() - 20);
-        g2.drawString("@Hex | version dev.", 10, gamePanel.getHeight() - 20);
-        g2.setFont(uiSettings.fontPlain6);
+      
     }
 
     private void drawGameHUD(Graphics2D g2, int mm, int ss, double wpm, double acc) {
         g2.setFont(uiSettings.fontBold16);
-        g2.setColor(CLR_TIME);
+        g2.setColor(UIConfig.TIME_COLOR);
         g2.drawString(String.format("เวลา: %02d:%02d", mm, ss), 28, 42);
-        g2.setColor(CLR_WPM);
+        g2.setColor(UIConfig.WPM_COLOR);
         g2.drawString(String.format(Locale.US, "WPM: %.1f", wpm), 28, 70);
-        g2.setColor(CLR_DONE);
+        g2.setColor(UIConfig.DONE_COLOR);
         g2.drawString(String.format("คำที่พิมพ์ได้: %d", gameState.wordsCompleted), 28, 95);
     }
 
     private void drawHealthBars(Graphics2D g2) {
-        int barW = 120;
-        int barH = 14;
+        int barW = UIConfig.HEALTH_BAR_WIDTH;
+        int barH = UIConfig.HEALTH_BAR_HEIGHT;
 
         int playerX = 50;
         int playerY = 160;
@@ -132,7 +137,7 @@ public class GameRenderer {
 
     private void drawSingleHealthBar(Graphics2D g2, int barX, int barY, int barW, int barH,
             double healthPercent, String healthText) {
-        g2.setColor(CLR_HUD_PANEL);
+        g2.setColor(UIConfig.HUD_PANEL);
         g2.fillRoundRect(barX - 6, barY - 6, barW + 12, barH + 20, 12, 12);
 
         g2.setColor(new Color(40, 40, 40));
@@ -141,15 +146,15 @@ public class GameRenderer {
         int healthW = (int) (barW * healthPercent);
 
         Color healthColor1 = healthPercent > 0.6
-                ? new Color(100, 255, 100)
+                ? UIConfig.HEALTH_HIGH_1
                 : healthPercent > 0.3
-                        ? new Color(255, 220, 100)
-                        : new Color(255, 100, 100);
+                        ? UIConfig.HEALTH_MED_1
+                        : UIConfig.HEALTH_LOW_1;
         Color healthColor2 = healthPercent > 0.6
-                ? new Color(70, 200, 70)
+                ? UIConfig.HEALTH_HIGH_2
                 : healthPercent > 0.3
-                        ? new Color(255, 180, 70)
-                        : new Color(200, 70, 70);
+                        ? UIConfig.HEALTH_MED_2
+                        : UIConfig.HEALTH_LOW_2;
 
         if (healthW > 0) {
             Paint oldPaint = g2.getPaint();
@@ -169,7 +174,7 @@ public class GameRenderer {
 
         if (healthText != null) {
             g2.setFont(uiSettings.fontSmall12);
-            g2.setColor(CLR_HUD_TEXT);
+            g2.setColor(UIConfig.HUD_TEXT);
             FontMetrics fm = g2.getFontMetrics();
             int textX = barX + (barW - fm.stringWidth(healthText)) / 2;
             g2.drawString(healthText, textX, barY - 8);
@@ -208,30 +213,19 @@ public class GameRenderer {
             char ch = gameState.current.word.charAt(i);
             int x = x0 + i * (keyW + GameConfig.KEY_SPACING);
 
-            gg.setColor(CLR_BOX_SHADOW);
-            gg.fillRoundRect(x - 6, y - 6, keyW + 12, keyH + 12, 18, 18);
-            drawWordInfo(g2, cx, cy - 80);
-
             BufferedImage img = (i < gameState.playerIdx)
                     ? gameState.atlas.getPressed(ch)
                     : gameState.atlas.getNormal(ch);
-            gg.drawImage(img, x, y, keyW, keyH, null);
+
+            RenderUtils.drawKeyWithShadow(gg, img, x, y, keyW, keyH);
+            drawWordInfo(g2, cx, cy - 80);
 
             if (i == gameState.playerIdx && gameState.state == GameConfig.State.PLAYING) {
-                Stroke old = gg.getStroke();
-                gg.setStroke(new BasicStroke(3f));
-                gg.setColor(new Color(255, 215, 0, 210));
-                gg.drawRoundRect(x - 3, y - 3, keyW + 6, keyH + 6, 12, 12);
-                gg.setStroke(old);
+                RenderUtils.drawHighlightedKey(gg, x, y, keyW, keyH, new Color(255, 215, 0, 210));
             }
 
-            // Draw opponent progress if in multiplayer mode
             if (gameState.isMultiplayerMode() && i == gameState.getOpponentIdx()) {
-                Stroke old = gg.getStroke();
-                gg.setStroke(new BasicStroke(3f));
-                gg.setColor(new Color(255, 100, 100, 180)); // Red color for opponent
-                gg.drawRoundRect(x - 3, y - 3, keyW + 6, keyH + 6, 12, 12);
-                gg.setStroke(old);
+                RenderUtils.drawHighlightedKey(gg, x, y, keyW, keyH, new Color(255, 100, 100, 180));
             }
         }
         gg.dispose();
@@ -250,28 +244,24 @@ public class GameRenderer {
         int boxH = 70;
         int boxY = cy - boxH / 2;
 
-        g2.setColor(CLR_HUD_PANEL);
-        g2.fillRoundRect(boxX, boxY, boxW, boxH, 15, 15);
+        RenderUtils.drawRoundedPanel(g2, boxX, boxY, boxW, boxH, UIConfig.HUD_PANEL, null);
         g2.setColor(Color.WHITE);
         g2.setFont(uiSettings.fontBold20);
-        centerTextAt(g2, title, cx, cy - 15);
+        RenderUtils.centerTextAt(g2, title, cx, cy - 15);
 
         g2.setColor(new Color(220, 220, 220));
         g2.setFont(uiSettings.fontPlain16);
-        centerTextAt(g2, sub1 + " • " + sub2, cx, cy + 8);
+        RenderUtils.centerTextAt(g2, sub1 + " • " + sub2, cx, cy + 8);
     }
 
     private void drawFooterInfo(Graphics2D g2) {
         if (gameState.state == GameConfig.State.READY) {
             // Don't show space prompt if in online mode
-            if (!gamePanel.isOnlineMode()) {
+            if (!OnlineMatchManager.getInstance().isOnline()) {
                 drawSpacePrompt(g2, "กด ", " เพื่อเริ่มเกม");
-                drawTabPrompt(g2, "กด ", " เพื่อเข้าออนไลน์");
+                // Don't show tab prompt anymore - online button is integrated in UI
             } else {
-                g2.setFont(uiSettings.fontBold16);
-                g2.setColor(new Color(100, 255, 100));
-                centerTextAt(g2, "โหมดออนไลน์ - รอผู้เล่นอื่น...", gamePanel.getWidth() / 2,
-                        gamePanel.getHeight() - 150);
+                // Online status is now handled by OnlineUI.renderOnlineUI()
             }
 
             drawArrowPrompt(g2, "กด ", " เพื่อเลือกตัวละคร");
@@ -280,7 +270,54 @@ public class GameRenderer {
             drawSpacePrompt(g2, "กด ", " เพื่อเริ่มใหม่");
             drawArrowPrompt(g2, "กด ", " เพื่อเลือกตัวละคร");
             drawBackspacePrompt(g2, "กด ", " เพื่อตั้งค่า");
+            
+            // Save player score when game ends
+            OnlineMatchManager manager = OnlineMatchManager.getInstance();
+            if (manager.getLocalPlayer() != null) {
+                PlayerDatabase.savePlayerScore(manager.getLocalPlayer().name, gameState.wordsCompleted, (int)(gameState.wordsCompleted * 5.0 / Math.max(1e-6, (System.currentTimeMillis() - gameState.startMs) / 60000.0)));
+            }
         }
+    }
+
+    private void drawOnlinePlayerStats(Graphics2D g2) {
+        String playerName = OnlineUI.getPlayerName();
+        if (playerName == null || playerName.trim().isEmpty()) return;
+        
+        PlayerDatabase.PlayerRecord record = PlayerDatabase.getPlayerRecord(playerName);
+        if (record == null) return;
+        
+        int panelWidth = RenderConfig.SCORE_PANEL_WIDTH;
+        int panelHeight = 120; // Larger height for more stats
+        int panelX = gamePanel.getWidth() - panelWidth - RenderConfig.SCORE_PANEL_MARGIN;
+        int panelY = RenderConfig.SCORE_PANEL_Y;
+        
+        RenderUtils.drawRoundedPanel(g2, panelX, panelY, panelWidth, panelHeight, UIConfig.HUD_PANEL, new Color(255, 255, 255, 40));
+        
+        g2.setColor(Color.WHITE);
+        g2.setFont(uiSettings.fontBold16);
+        RenderUtils.centerTextAt(g2, "Online Stats - " + playerName, panelX + panelWidth / 2, panelY + 20);
+        
+        g2.setColor(new Color(255, 255, 255, 60));
+        g2.drawLine(panelX + 20, panelY + 30, panelX + panelWidth - 20, panelY + 30);
+        
+        // Online wins
+        g2.setColor(new Color(100, 255, 100));
+        g2.setFont(uiSettings.fontBold16);
+        g2.drawString("Wins: " + record.onlineWins, panelX + 15, panelY + 50);
+        
+        // Online losses
+        g2.setColor(new Color(255, 100, 100));
+        g2.drawString("Losses: " + record.onlineLosses, panelX + 15, panelY + 68);
+        
+        // Win rate
+        g2.setColor(new Color(255, 215, 0));
+        double winRate = record.getWinRate() * 100;
+        g2.drawString(String.format("Win Rate: %.1f%%", winRate), panelX + 15, panelY + 86);
+        
+        // Favorite character
+        g2.setColor(new Color(200, 200, 200));
+        g2.setFont(uiSettings.fontSmall12);
+        g2.drawString("Fav. Character: " + record.favoriteCharacter.replace("_", " "), panelX + 15, panelY + 104);
     }
 
     private void drawScoreInfo(Graphics2D g2) {
@@ -288,19 +325,16 @@ public class GameRenderer {
         int highScore = scoreManager.getHighScore();
         int lastScore = scoreManager.getLastScore();
 
-        int panelWidth = 220;
-        int panelHeight = 90;
-        int panelX = gamePanel.getWidth() - panelWidth - 10;
-        int panelY = 20;
+        int panelWidth = RenderConfig.SCORE_PANEL_WIDTH;
+        int panelHeight = RenderConfig.SCORE_PANEL_HEIGHT;
+        int panelX = gamePanel.getWidth() - panelWidth - RenderConfig.SCORE_PANEL_MARGIN;
+        int panelY = RenderConfig.SCORE_PANEL_Y;
 
-        g2.setColor(CLR_HUD_PANEL);
-        g2.fillRoundRect(panelX, panelY, panelWidth, panelHeight, 12, 12);
-        g2.setColor(new Color(255, 255, 255, 40));
-        g2.drawRoundRect(panelX, panelY, panelWidth, panelHeight, 12, 12);
+        RenderUtils.drawRoundedPanel(g2, panelX, panelY, panelWidth, panelHeight, UIConfig.HUD_PANEL, new Color(255, 255, 255, 40));
 
         g2.setColor(Color.WHITE);
         g2.setFont(uiSettings.fontBold16);
-        centerTextAt(g2, "สถิติการเล่น", panelX + panelWidth / 2, panelY + 25);
+        RenderUtils.centerTextAt(g2, "สถิติการเล่น", panelX + panelWidth / 2, panelY + 25);
 
         g2.setColor(new Color(255, 255, 255, 60));
         g2.drawLine(panelX + 20, panelY + 35, panelX + panelWidth - 20, panelY + 35);
@@ -320,27 +354,9 @@ public class GameRenderer {
                 : (gameState.spaceAnimOn && uiSettings.spaceFramePressed != null
                         ? uiSettings.spaceFramePressed
                         : uiSettings.spaceFrameNormal);
-
-        g2.setFont(uiSettings.fontBold20);
-        FontMetrics fm = g2.getFontMetrics();
-        int spriteH = 26;
-        int spriteW = (frame != null)
-                ? (int) (frame.getWidth() * (spriteH / (double) frame.getHeight()))
-                : 0;
-        int totalW = fm.stringWidth(pre) + spriteW + fm.stringWidth(post);
-        int y = gamePanel.getHeight() - 120;
-        int x = (gamePanel.getWidth() - totalW) / 2;
-
-        g2.setColor(Color.WHITE);
-        g2.drawString(pre, x, y);
-        int curX = x + fm.stringWidth(pre);
-
-        if (frame != null) {
-            g2.drawImage(frame, curX, y - spriteH + 3, spriteW, spriteH, null);
-            curX += spriteW;
-        }
-
-        g2.drawString(post, curX, y);
+        
+        int y = gamePanel.getHeight() - RenderConfig.SPACE_PROMPT_Y_OFFSET;
+        RenderUtils.drawKeyPrompt(g2, pre, post, frame, gamePanel.getWidth() / 2, y, uiSettings.fontBold20);
     }
 
     private void drawArrowPrompt(Graphics2D g2, String pre, String post) {
@@ -362,7 +378,7 @@ public class GameRenderer {
                 ? (int) (rightFrame.getWidth() * (spriteH / (double) rightFrame.getHeight()))
                 : 0;
         int totalW = fm.stringWidth(pre) + spriteW + spriteW2 + fm.stringWidth(post) + 10;
-        int y = gamePanel.getHeight() - 90;
+        int y = gamePanel.getHeight() - RenderConfig.ARROW_PROMPT_Y_OFFSET;
         int x = (gamePanel.getWidth() - totalW) / 2;
 
         g2.setColor(Color.WHITE);
@@ -371,7 +387,7 @@ public class GameRenderer {
 
         if (leftFrame != null) {
             g2.drawImage(leftFrame, curX, y - spriteH + 2, spriteW, spriteH, null);
-            curX += spriteW + 5;
+            curX += spriteW + RenderConfig.ARROW_SPRITE_SPACING;
         }
 
         if (rightFrame != null) {
@@ -383,30 +399,9 @@ public class GameRenderer {
     }
 
     private void drawBackspacePrompt(Graphics2D g2, String pre, String post) {
-        BufferedImage frame = uiSettings.backspaceFrameNormal != null
-                ? uiSettings.backspaceFrameNormal
-                : null;
-
-        g2.setFont(uiSettings.fontBold16);
-        FontMetrics fm = g2.getFontMetrics();
-        int spriteH = 22;
-        int spriteW = (frame != null)
-                ? (int) (frame.getWidth() * (spriteH / (double) frame.getHeight()))
-                : 0;
-        int totalW = fm.stringWidth(pre) + spriteW + fm.stringWidth(post);
-        int y = gamePanel.getHeight() - 60;
-        int x = (gamePanel.getWidth() - totalW) / 2;
-
-        g2.setColor(Color.WHITE);
-        g2.drawString(pre, x, y);
-        int curX = x + fm.stringWidth(pre);
-
-        if (frame != null) {
-            g2.drawImage(frame, curX, y - spriteH + 2, spriteW, spriteH, null);
-            curX += spriteW;
-        }
-
-        g2.drawString(post, curX, y);
+        BufferedImage frame = uiSettings.backspaceFrameNormal;
+        int y = gamePanel.getHeight() - RenderConfig.BACKSPACE_PROMPT_Y_OFFSET;
+        RenderUtils.drawKeyPrompt(g2, pre, post, frame, gamePanel.getWidth() / 2, y, uiSettings.fontBold16);
     }
 
     private void drawTabPrompt(Graphics2D g2, String pre, String post) {
@@ -416,12 +411,12 @@ public class GameRenderer {
 
         g2.setFont(uiSettings.fontBold16);
         FontMetrics fm = g2.getFontMetrics();
-        int spriteH = 22;
+        int spriteH = RenderConfig.DEFAULT_SPRITE_HEIGHT;
         int spriteW = (frame != null)
                 ? (int) (frame.getWidth() * (spriteH / (double) frame.getHeight()))
                 : 0;
         int totalW = fm.stringWidth(pre) + spriteW + fm.stringWidth(post);
-        int y = gamePanel.getHeight() - 150;
+        int y = gamePanel.getHeight() - RenderConfig.TAB_PROMPT_Y_OFFSET;
         int x = (gamePanel.getWidth() - totalW) / 2;
 
         g2.setColor(new Color(100, 255, 100));
@@ -437,7 +432,7 @@ public class GameRenderer {
     }
 
     public void drawSettingsOverlay(Graphics2D g2) {
-        g2.setColor(new Color(0, 0, 0, 160));
+        g2.setColor(new Color(0, 0, 0, RenderConfig.SETTINGS_OVERLAY_ALPHA));
         g2.fillRect(0, 0, gamePanel.getWidth(), gamePanel.getHeight());
 
         Rectangle panelRect = uiSettings.panelRect;
@@ -459,13 +454,13 @@ public class GameRenderer {
             uiSettings.layoutSettingsRects(gamePanel.getWidth(), gamePanel.getHeight());
 
         g2.setColor(new Color(24, 28, 34));
-        g2.fillRoundRect(panelRect.x, panelRect.y, panelRect.width, panelRect.height, 16, 16);
+        g2.fillRoundRect(panelRect.x, panelRect.y, panelRect.width, panelRect.height, RenderConfig.SETTINGS_PANEL_CORNER_RADIUS, RenderConfig.SETTINGS_PANEL_CORNER_RADIUS);
         g2.setColor(new Color(255, 255, 255, 80));
-        g2.drawRoundRect(panelRect.x, panelRect.y, panelRect.width, panelRect.height, 16, 16);
+        g2.drawRoundRect(panelRect.x, panelRect.y, panelRect.width, panelRect.height, RenderConfig.SETTINGS_PANEL_CORNER_RADIUS, RenderConfig.SETTINGS_PANEL_CORNER_RADIUS);
 
         g2.setFont(uiSettings.fontBold20);
         g2.setColor(Color.WHITE);
-        centerTextAt(g2, "ตั้งค่าเสียง", panelRect.x + panelRect.width / 2, panelRect.y + 36);
+        RenderUtils.centerTextAt(g2, "ตั้งค่าเสียง", panelRect.x + panelRect.width / 2, panelRect.y + 36);
 
         g2.setFont(uiSettings.fontPlain16);
         g2.setColor(new Color(220, 220, 220));
@@ -516,7 +511,7 @@ public class GameRenderer {
 
         g2.setFont(uiSettings.fontSmall11);
         g2.setColor(new Color(200, 200, 200));
-        centerTextAt(g2, "กด ESC เพื่อปิด", panelRect.x + panelRect.width / 2, panelRect.y + panelRect.height - 16);
+        RenderUtils.centerTextAt(g2, "กด ESC เพื่อปิด", panelRect.x + panelRect.width / 2, panelRect.y + panelRect.height - 16);
     }
 
     private void drawVolumeSlider(Graphics2D g2, Rectangle track, Rectangle knob, int value) {
@@ -592,99 +587,6 @@ public class GameRenderer {
                 previewBoxRect.x + 10, previewBoxRect.y + 16);
     }
 
-    private void centerTextAt(Graphics2D g2, String s, int x, int y) {
-        FontMetrics fm = g2.getFontMetrics();
-        int cx = x - fm.stringWidth(s) / 2;
-        g2.drawString(s, cx, y);
-    }
 
-    private void drawComboEffect(Graphics2D g2) {
-        if (gameState.comboEffect != null && gameState.comboEffect.isActive()) {
-            gameState.comboEffect.render(g2, uiSettings.fontBold20, uiSettings.fontPlain16);
-        }
-    }
 
-    private void drawDamageText(Graphics2D g2, long now) {
-        if (gameState.showPlayerDamage) {
-            long elapsed = now - (gameState.playerDamageUntil - 1000);
-            float alpha = Math.max(0f, 1f - (elapsed / 1000f));
-            int yOffset = (int) (elapsed * 0.05f);
-
-            g2.setColor(new Color(255, 80, 80, (int) (255 * alpha)));
-            g2.setFont(uiSettings.fontBold20);
-            g2.drawString("-1", gameState.playerDamageX, gameState.playerDamageY - yOffset);
-        }
-
-        if (gameState.showBotDamage) {
-            long elapsed = now - (gameState.botDamageUntil - 1000);
-            float alpha = Math.max(0f, 1f - (elapsed / 1000f));
-            int yOffset = (int) (elapsed * 0.05f);
-
-            g2.setColor(new Color(255, 80, 80, (int) (255 * alpha)));
-            g2.setFont(uiSettings.fontBold20);
-            g2.drawString("-1", gameState.botDamageX, gameState.botDamageY - yOffset);
-        }
-    }
-
-    private void drawOnlineUI(Graphics2D g2) {
-        int botX = gameState.botBaseX;
-        int botY = gameState.groundY;
-        int panelWidth = 300;
-        int panelHeight = 200;
-
-        g2.setColor(new Color(0, 0, 0, 150));
-        g2.fillRoundRect(botX - panelWidth / 2, botY - panelHeight - 20, panelWidth, panelHeight, 15, 15);
-
-        g2.setColor(Color.WHITE);
-        g2.setStroke(new BasicStroke(2));
-        g2.drawRoundRect(botX - panelWidth / 2, botY - panelHeight - 20, panelWidth, panelHeight, 15, 15);
-
-        g2.setFont(uiSettings.fontBold20);
-        String title = "โหมดออนไลน์";
-        int titleWidth = g2.getFontMetrics().stringWidth(title);
-        g2.drawString(title, botX - titleWidth / 2, botY - panelHeight + 10);
-
-        g2.setFont(uiSettings.fontPlain16);
-        String playerText = "ผู้เล่น: " + gameState.getPlayerName();
-        int playerTextWidth = g2.getFontMetrics().stringWidth(playerText);
-        g2.drawString(playerText, botX - playerTextWidth / 2, botY - panelHeight + 40);
-
-        // Draw status message if available
-        String statusMessage = gameState.getStatusMessage();
-        if (statusMessage != null && !statusMessage.isEmpty()) {
-            g2.setColor(new Color(255, 255, 0)); // Yellow color for status
-            g2.setFont(uiSettings.fontBold20);
-            int statusWidth = g2.getFontMetrics().stringWidth(statusMessage);
-            g2.drawString(statusMessage, botX - statusWidth / 2, botY - panelHeight + 70);
-        }
-
-        int buttonWidth = 80;
-        int buttonHeight = 30;
-        int buttonY = botY - panelHeight + 100; // Move buttons down to avoid overlapping with status message
-
-        g2.setColor(new Color(70, 130, 180));
-        g2.fillRoundRect(botX - 120, buttonY, buttonWidth, buttonHeight, 8, 8);
-        g2.fillRoundRect(botX - 30, buttonY, buttonWidth, buttonHeight, 8, 8);
-        g2.fillRoundRect(botX + 60, buttonY, buttonWidth, buttonHeight, 8, 8);
-
-        g2.setColor(Color.WHITE);
-        g2.drawRoundRect(botX - 120, buttonY, buttonWidth, buttonHeight, 8, 8);
-        g2.drawRoundRect(botX - 30, buttonY, buttonWidth, buttonHeight, 8, 8);
-        g2.drawRoundRect(botX + 60, buttonY, buttonWidth, buttonHeight, 8, 8);
-
-        g2.setFont(uiSettings.fontSmall12);
-        drawCenteredText(g2, "สร้างห้อง", botX - 80, buttonY + 20);
-        drawCenteredText(g2, "รีเฟรช", botX + 10, buttonY + 20);
-        drawCenteredText(g2, "เข้าห้อง", botX + 100, buttonY + 20);
-
-        g2.setFont(uiSettings.fontPlain16);
-        g2.setColor(new Color(200, 200, 200));
-        drawCenteredText(g2, "กดเพื่อจัดการห้องออนไลน์", botX, botY - panelHeight + 180); // Adjust text position
-    }
-
-    private void drawCenteredText(Graphics2D g2, String text, int x, int y) {
-        FontMetrics fm = g2.getFontMetrics();
-        int textWidth = fm.stringWidth(text);
-        g2.drawString(text, x - textWidth / 2, y);
-    }
 }

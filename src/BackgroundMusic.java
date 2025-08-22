@@ -1,7 +1,7 @@
-import javax.sound.sampled.*;
 import java.io.File;
+import javax.sound.sampled.*;
 
-public class BackgroundMusic {
+public class BackgroundMusic implements AudioComponent {
     private Clip clip;
     private float volume = 1.0f;
     private boolean isPlaying = false;
@@ -21,7 +21,7 @@ public class BackgroundMusic {
             clip.open(audioInputStream);
 
             clip.loop(Clip.LOOP_CONTINUOUSLY);
-            applyVolume();
+            AudioManager.applyVolumeToClip(clip, volume);
         } catch (Exception e) {
             System.err.println("Error loading background music: " + e.getMessage());
         }
@@ -58,37 +58,12 @@ public class BackgroundMusic {
 
     public void setVolume(float volume) {
         this.volume = Math.max(0f, Math.min(1f, volume));
-        applyVolume();
-    }
-
-    private void applyVolume() {
-        if (clip == null)
-            return;
-
-        try {
-            if (clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
-                FloatControl gainControl = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
-                float min = gainControl.getMinimum();
-                float max = gainControl.getMaximum();
-                float dB = (volume <= 0f) ? min : (float) (20.0 * Math.log10(volume));
-                dB = Math.max(min, Math.min(max, dB));
-                gainControl.setValue(dB);
-                return;
-            }
-        } catch (Exception ignored) {
-        }
-
-        try {
-            if (clip.isControlSupported(FloatControl.Type.VOLUME)) {
-                FloatControl volumeControl = (FloatControl) clip.getControl(FloatControl.Type.VOLUME);
-                float min = volumeControl.getMinimum();
-                float max = volumeControl.getMaximum();
-                float val = min + volume * (max - min);
-                volumeControl.setValue(val);
-            }
-        } catch (Exception ignored) {
+        if (clip != null) {
+            AudioManager.applyVolumeToClip(clip, this.volume);
         }
     }
+
+
 
     public boolean isPlaying() {
         return isPlaying;

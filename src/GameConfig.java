@@ -10,6 +10,12 @@ public class GameConfig {
     public static final String CLICK_WAV_PATH = "./res/wav/click3_1.wav";
     public static final int MAX_HEALTH = 10;
     public static final int DEBOUNCE_MS = 35;
+    
+    public static final int GAME_TIMER_DELAY = 16;
+    public static final int HIT_EFFECT_TIMER_DELAY = 25;
+    public static final int COMBO_DISPLAY_DURATION = 2000;
+    public static final int COMBO_FADE_DURATION = 500;
+    public static final int SPACE_ANIM_MS = 400;
 
     public enum State {
         READY, PLAYING, GAMEOVER

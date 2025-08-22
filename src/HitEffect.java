@@ -1,12 +1,12 @@
-import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import javax.imageio.ImageIO;
+import javax.swing.*;
 
-public class HitEffect {
+public class HitEffect implements Effect {
     private BufferedImage spriteSheet;
     private final List<Rectangle> frames = new ArrayList<>();
     private int currentFrame = 0;
@@ -25,15 +25,7 @@ public class HitEffect {
             e.printStackTrace();
         }
 
-        new Timer(25, e -> {
-            if (playing) {
-                currentFrame++;
-                if (currentFrame >= frames.size()) {
-                    playing = false;
-                    currentFrame = 0;
-                }
-            }
-        }).start();
+        new Timer(GameConfig.HIT_EFFECT_TIMER_DELAY, e -> update()).start();
     }
 
     public void setScale(double s) {
@@ -45,6 +37,33 @@ public class HitEffect {
         this.y = my;
         this.playing = true;
         this.currentFrame = 0;
+    }
+
+    @Override
+    public void update() {
+        if (playing) {
+            currentFrame++;
+            if (currentFrame >= frames.size()) {
+                playing = false;
+                currentFrame = 0;
+            }
+        }
+    }
+
+    @Override
+    public boolean isActive() {
+        return playing;
+    }
+
+    @Override
+    public void reset() {
+        playing = false;
+        currentFrame = 0;
+    }
+
+    @Override
+    public void render(Graphics2D g2) {
+        draw(g2);
     }
 
     public void draw(Graphics2D g2) {

@@ -1,7 +1,7 @@
-import java.util.Random;
 import java.util.List;
+import java.util.Random;
 
-public class GameState {
+public class GameState implements StateManager {
 
     public final Random rng = new Random();
     public final int CHAR_SCALE = 3;
@@ -72,7 +72,6 @@ public class GameState {
     public boolean isSpaceHeld = false;
     public long spaceAnimLast = 0;
     public boolean spaceAnimOn = false;
-    public static final int SPACE_ANIM_MS = 400;
 
     public long lastFpsTime = 0;
     public int frames = 0;
@@ -270,7 +269,15 @@ public class GameState {
             animController.setAnim(bot, CharacterPack.Anim.IDLE);
         }
 
-        nextWord();
+        // CRITICAL: Only generate new word locally in offline mode  
+        // In online multiplayer mode, words come from server
+        if (!isMultiplayerMode) {
+            nextWord();
+            System.out.println("OFFLINE: Generated word for new run: " + (current != null ? current.word : "null"));
+        } else {
+            System.out.println("ONLINE: Preserving server word for new run: " + (current != null ? current.word : "null"));
+        }
+        
         startMs = System.currentTimeMillis();
         state = GameConfig.State.PLAYING;
     }
@@ -373,7 +380,16 @@ public class GameState {
                     ScoreManager.getInstance().saveScore(wordsCompleted);
                     pendingGameOver = false;
                 } else {
-                    nextWord();
+                    // CRITICAL: Only generate new word locally in offline mode
+                    // In online multiplayer mode, wait for server to send new word
+                    if (!isMultiplayerMode) {
+                        nextWord();
+                        System.out.println("OFFLINE: Generated next word after player attack: " + (current != null ? current.word : "null"));
+                    } else {
+                        System.out.println("ONLINE: Waiting for server word after player attack, current: " + (current != null ? current.word : "null"));
+                        // In online mode, server will send GAME_STATE_UPDATE with new word
+                        // Don't generate locally to prevent word conflicts
+                    }
                 }
             }
         }
@@ -394,12 +410,21 @@ public class GameState {
                 }
 
                 wordsCompleted++;
-                botHealth = Math.max(0, botHealth - 1);
-                startPlayerAttackSequence();
+                
+                // Handle combat based on mode
+                if (OnlineMatchManager.getInstance().isRacing()) {
+                    // Online multiplayer mode - word completion is handled by InputHandler
+                    // to avoid duplicate calls. The InputHandler will call handleWordCompleted()
+                    // after checking progress, so we don't call it here.
+                } else {
+                    // Offline bot mode
+                    botHealth = Math.max(0, botHealth - 1);
+                    startPlayerAttackSequence();
 
-                if (botHealth <= 0) {
-                    pendingGameOver = true;
-                    gameOverWinner = "WIN";
+                    if (botHealth <= 0) {
+                        pendingGameOver = true;
+                        gameOverWinner = "WIN";
+                    }
                 }
             }
         } else {
@@ -415,7 +440,7 @@ public class GameState {
             }
         }
         if (state == GameConfig.State.READY || state == GameConfig.State.GAMEOVER) {
-            if (now - spaceAnimLast >= SPACE_ANIM_MS) {
+            if (now - spaceAnimLast >= GameConfig.SPACE_ANIM_MS) {
                 spaceAnimOn = !spaceAnimOn;
                 spaceAnimLast = now;
             }
@@ -486,14 +511,28 @@ public class GameState {
         if (state == GameConfig.State.READY) {
             state = GameConfig.State.PLAYING;
             startMs = System.currentTimeMillis();
+            
+            // CRITICAL: Only generate words locally in offline mode
+            // In online multiplayer mode, words are sent by the server
             if (!isMultiplayerMode) {
                 nextWord();
+                System.out.println("OFFLINE MODE: Generated local word: " + (current != null ? current.word : "null"));
+            } else {
+                System.out.println("ONLINE MODE: Waiting for server word, current: " + (current != null ? current.word : "null"));
             }
+            
             if (bgMusic != null) {
                 bgMusic.stop();
                 bgMusic.play();
             }
         }
+    }
+    
+    public void resetTypingProgress() {
+        playerIdx = 0;
+        opponentIdx = 0;
+        // Force UI update to reflect reset progress
+        System.out.println("Reset typing progress - word: " + (current != null ? current.word : "null"));
     }
 
     public void setMultiplayerMode(boolean multiplayer) {
@@ -510,7 +549,29 @@ public class GameState {
     public void setCurrentWord(String word) {
         if (word != null && !word.isEmpty()) {
             this.currentWord = word;
-            current = new WordEntry(word.toUpperCase(), word.toUpperCase(), word, word);
+            
+            // Parse the word format: "WORD|pronunciation|meaning"
+            String[] parts = word.split("\\|");
+            
+            if (parts.length >= 3) {
+                // Full format with pronunciation and meaning
+                String mainWord = parts[0].trim();
+                String pronunciation = parts[1].trim();
+                String meaning = parts[2].trim();
+                current = new WordEntry(mainWord, mainWord, pronunciation, meaning);
+                System.out.println("Parsed word: '" + mainWord + "' (" + pronunciation + " - " + meaning + ")");
+            } else if (parts.length == 2) {
+                // Partial format with pronunciation
+                String mainWord = parts[0].trim();
+                String pronunciation = parts[1].trim();
+                current = new WordEntry(mainWord, mainWord, pronunciation, mainWord);
+                System.out.println("Parsed word: '" + mainWord + "' (" + pronunciation + ")");
+            } else {
+                // Simple format, just the word
+                String mainWord = word.trim().toUpperCase();
+                current = new WordEntry(mainWord, mainWord, mainWord, mainWord);
+                System.out.println("Simple word: '" + mainWord + "'");
+            }
         }
     }
 
@@ -566,4 +627,76 @@ public class GameState {
         return opponentCharacterPack;
     }
 
+    // StateManager interface implementation
+    @Override
+    public void pauseGame() {
+        if (state == GameConfig.State.PLAYING) {
+            previousState = state;
+            // Note: No pause state in current GameConfig.State enum
+        }
+    }
+
+    @Override
+    public void resumeGame() {
+        if (previousState == GameConfig.State.PLAYING) {
+            state = GameConfig.State.PLAYING;
+        }
+    }
+
+    @Override
+    public void endGame() {
+        state = GameConfig.State.GAMEOVER;
+    }
+
+    @Override
+    public boolean isPlaying() {
+        return state == GameConfig.State.PLAYING;
+    }
+
+    @Override
+    public boolean isReady() {
+        return state == GameConfig.State.READY;
+    }
+
+    @Override
+    public boolean isGameOver() {
+        return state == GameConfig.State.GAMEOVER;
+    }
+
+    @Override
+    public GameConfig.State getCurrentState() {
+        return state;
+    }
+
+    @Override
+    public void completeWord() {
+        wordsCompleted++;
+    }
+
+    @Override
+    public void takeDamage(boolean isPlayer) {
+        if (isPlayer) {
+            playerHealth = Math.max(0, playerHealth - 1);
+        } else {
+            botHealth = Math.max(0, botHealth - 1);
+        }
+    }
+
+    @Override
+    public void updateScore(int score) {
+        wordsCompleted = score;
+    }
+
+    @Override
+    public long getElapsedTime() {
+        if (state == GameConfig.State.PLAYING && startMs > 0) {
+            return System.currentTimeMillis() - startMs;
+        }
+        return 0;
+    }
+
+    @Override
+    public void updateGameTime() {
+        // Time is automatically tracked via startMs
+    }
 }

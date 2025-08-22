@@ -1,6 +1,6 @@
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
-import java.awt.*;
 import javax.imageio.ImageIO;
 
 public class UISettings {
@@ -283,9 +283,12 @@ public class UISettings {
         if (ttsEnabled) {
             new Thread(() -> {
                 try {
-                    SlowTTS tts = new SlowTTS("kevin16", ttsRates[ttsSpeedLevel]);
-                    tts.speak("Hello");
-                    tts.close();
+                try {
+                    // SlowTTS tts = new SlowTTS("kevin16", ttsRates[ttsSpeedLevel]);
+                    // tts.speak("Hello");
+                    // tts.close();
+                } catch (Exception ignored) {
+                }
                 } catch (Exception ignored) {
                 }
             }).start();
@@ -296,18 +299,21 @@ public class UISettings {
         if (ttsEnabled && current != null) {
             new Thread(() -> {
                 try {
-                    SlowTTS tts = new SlowTTS("kevin16", ttsRates[ttsSpeedLevel]);
-                    tts.speak(current.word);
+                try {
+                    // SlowTTS tts = new SlowTTS("kevin16", ttsRates[ttsSpeedLevel]);
+                    // tts.speak(current.word);
 
-                    if (ttsRepeatEnabled) {
-                        try {
-                            Thread.sleep(800);
-                        } catch (InterruptedException ignored) {
-                        }
-                        tts.speak(current.word);
-                    }
+                    // if (ttsRepeatEnabled) {
+                    //     try {
+                    //         Thread.sleep(800);
+                    //     } catch (InterruptedException ignored) {
+                    //     }
+                    //     tts.speak(current.word);
+                    // }
 
-                    tts.close();
+                    // tts.close();
+                } catch (Exception ignored) {
+                }
                 } catch (Exception ignored) {
                 }
             }).start();

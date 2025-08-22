@@ -1,6 +1,6 @@
 import java.awt.*;
 
-public class ComboEffect {
+public class ComboEffect implements Effect {
     private int comboCount;
     private int comboMultiplier;
     private long displayUntil;
@@ -31,7 +31,7 @@ public class ComboEffect {
         this.y = y;
         this.scale = 1.6f;
         this.angle = (float) (Math.random() * 30 - 15);
-        this.displayUntil = System.currentTimeMillis() + 2000;
+        this.displayUntil = System.currentTimeMillis() + GameConfig.COMBO_DISPLAY_DURATION;
         this.active = true;
 
         if (comboCount >= 20) {
@@ -45,6 +45,7 @@ public class ComboEffect {
         }
     }
 
+    @Override
     public void update() {
         if (!active)
             return;
@@ -56,7 +57,7 @@ public class ComboEffect {
         }
 
         long elapsed = displayUntil - now;
-        if (elapsed < 500) {
+        if (elapsed < GameConfig.COMBO_FADE_DURATION) {
             scale *= 0.97f;
         } else if (scale > 1.0f) {
             scale *= 0.95f;
@@ -67,6 +68,16 @@ public class ComboEffect {
         if (elapsed < 1000) {
             y -= 0.5f;
         }
+    }
+
+    @Override
+    public boolean isActive() {
+        return active;
+    }
+
+    @Override
+    public void render(Graphics2D g2) {
+        render(g2, new Font("Arial", Font.BOLD, 24), new Font("Arial", Font.PLAIN, 18));
     }
 
     public void render(Graphics2D g2, Font boldFont, Font normalFont) {
@@ -96,9 +107,5 @@ public class ComboEffect {
         }
 
         g.dispose();
-    }
-
-    public boolean isActive() {
-        return active;
     }
 }

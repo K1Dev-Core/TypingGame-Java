@@ -1,18 +1,18 @@
-import java.awt.event.*;
-import java.awt.Toolkit;
-import java.awt.Point;
-import java.awt.Dimension;
-import java.awt.Image;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.Cursor;
-import java.awt.Rectangle;
-import java.awt.image.BufferedImage;
-import javax.imageio.ImageIO;
-import java.io.File;
 import client.NetworkClient;
-import shared.Player;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.Graphics2D;
+import java.awt.Image;
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.Toolkit;
+import java.awt.event.*;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import javax.imageio.ImageIO;
 import shared.NetworkMessage;
+import shared.Player;
 
 public class InputHandler implements KeyListener, MouseListener {
     private final GamePanel gamePanel;
@@ -182,6 +182,12 @@ public class InputHandler implements KeyListener, MouseListener {
     public void keyPressed(KeyEvent e) {
         int code = e.getKeyCode();
 
+        // Handle name input first - highest priority when name input is showing
+        if (OnlineUI.isShowingNameInput()) {
+            handleNameInputKeys(e);
+            return; // Don't process other keys when name input is active
+        }
+
         if (code >= 0 && code < gameState.lastPressAt.length) {
             long now = System.currentTimeMillis();
             if (now - gameState.lastPressAt[code] < GameConfig.DEBOUNCE_MS)
@@ -190,9 +196,17 @@ public class InputHandler implements KeyListener, MouseListener {
         }
 
         if (code == KeyEvent.VK_ESCAPE) {
-            uiSettings.showSettings = !uiSettings.showSettings;
-            gamePanel.repaint();
-            return;
+            // If in online mode, allow ESC to exit back to main menu
+            if (OnlineMatchManager.getInstance().isOnline()) {
+                OnlineMatchManager.getInstance().resetToMainMenu();
+                NotificationSystem.showInfo("Returned to main menu");
+                gamePanel.repaint();
+                return;
+            } else {
+                uiSettings.showSettings = !uiSettings.showSettings;
+                gamePanel.repaint();
+                return;
+            }
         }
 
         if (gameState.state == GameConfig.State.READY) {
@@ -225,10 +239,25 @@ public class InputHandler implements KeyListener, MouseListener {
             return;
 
         if (code >= KeyEvent.VK_A && code <= KeyEvent.VK_Z) {
+            char typedChar = (char) ('A' + code - KeyEvent.VK_A);
+            
+            // Handle online system typing
+            OnlineMatchManager.getInstance().handleCharacterTyped(typedChar);
+            
             int oldPlayerIdx = gameState.playerIdx;
-            gameState.handleChar((char) ('A' + code - KeyEvent.VK_A), animController);
+            gameState.handleChar(typedChar, animController);
 
-            // Send progress if player advanced and we're in multiplayer mode
+            // Check if word was completed in online mode
+            if (OnlineMatchManager.getInstance().isRacing() && gameState.playerIdx > oldPlayerIdx) {
+                OnlineMatchManager.getInstance().sendPlayerProgress(gameState.playerIdx);
+                
+                // Check if word is complete
+                if (gameState.playerIdx >= gameState.current.word.length()) {
+                    OnlineMatchManager.getInstance().handleWordCompleted();
+                }
+            }
+            
+            // Legacy multiplayer support
             if (gameState.isMultiplayerMode() && gameState.playerIdx > oldPlayerIdx &&
                     networkClient != null && localPlayer != null) {
                 try {
@@ -240,10 +269,25 @@ public class InputHandler implements KeyListener, MouseListener {
                 }
             }
         } else if (code >= KeyEvent.VK_0 && code <= KeyEvent.VK_9) {
+            char typedChar = (char) ('0' + code - KeyEvent.VK_0);
+            
+            // Handle online system typing
+            OnlineMatchManager.getInstance().handleCharacterTyped(typedChar);
+            
             int oldPlayerIdx = gameState.playerIdx;
-            gameState.handleChar((char) ('0' + code - KeyEvent.VK_0), animController);
+            gameState.handleChar(typedChar, animController);
 
-            // Send progress if player advanced and we're in multiplayer mode
+            // Check if word was completed in online mode
+            if (OnlineMatchManager.getInstance().isRacing() && gameState.playerIdx > oldPlayerIdx) {
+                OnlineMatchManager.getInstance().sendPlayerProgress(gameState.playerIdx);
+                
+                // Check if word is complete
+                if (gameState.playerIdx >= gameState.current.word.length()) {
+                    OnlineMatchManager.getInstance().handleWordCompleted();
+                }
+            }
+            
+            // Legacy multiplayer support
             if (gameState.isMultiplayerMode() && gameState.playerIdx > oldPlayerIdx &&
                     networkClient != null && localPlayer != null) {
                 try {
@@ -257,29 +301,83 @@ public class InputHandler implements KeyListener, MouseListener {
         }
     }
 
-    private void handleReadyStateKeyPress(int code) {
-        if (code == KeyEvent.VK_ESCAPE && gameState.isShowOnlineUI()) {
-            gameState.setShowOnlineUI(false);
+    private void handleNameInputKeys(KeyEvent e) {
+        int code = e.getKeyCode();
+        char keyChar = e.getKeyChar();
+        
+        // Handle Enter key
+        if (code == KeyEvent.VK_ENTER) {
+            OnlineUI.handleNameInput('\n');
             gamePanel.repaint();
+            return;
+        }
+        
+        // Handle Backspace
+        if (code == KeyEvent.VK_BACK_SPACE) {
+            OnlineUI.handleNameInput('\b');
+            gamePanel.repaint();
+            return;
+        }
+        
+        // Handle Space
+        if (code == KeyEvent.VK_SPACE) {
+            OnlineUI.handleNameInput(' ');
+            gamePanel.repaint();
+            return;
+        }
+        
+        // Handle Escape to cancel name input
+        if (code == KeyEvent.VK_ESCAPE) {
+            OnlineUI.exitOnlineMode();
+            gamePanel.repaint();
+            return;
+        }
+        
+        // Handle letter and number keys
+        if (code >= KeyEvent.VK_A && code <= KeyEvent.VK_Z) {
+            char typedChar = (char) ('A' + code - KeyEvent.VK_A);
+            OnlineUI.handleNameInput(typedChar);
+            gamePanel.repaint();
+        } else if (code >= KeyEvent.VK_0 && code <= KeyEvent.VK_9) {
+            char typedChar = (char) ('0' + code - KeyEvent.VK_0);
+            OnlineUI.handleNameInput(typedChar);
+            gamePanel.repaint();
+        }
+        
+        // Also handle keyChar for other valid characters
+        else if (Character.isLetterOrDigit(keyChar) && keyChar != KeyEvent.CHAR_UNDEFINED) {
+            OnlineUI.handleNameInput(Character.toUpperCase(keyChar));
+            gamePanel.repaint();
+        }
+    }
+
+    private void handleReadyStateKeyPress(int code) {
+        if (code == KeyEvent.VK_ESCAPE && OnlineMatchManager.getInstance().isOnline()) {
+            OnlineUI.exitOnlineMode();
+            gamePanel.repaint();
+            return;
+        }
+        
+        // TAB key to enter online mode
+        if (code == KeyEvent.VK_TAB) {
+            if (!OnlineMatchManager.getInstance().isOnline()) {
+                OnlineUI.enterOnlineMode();
+                gamePanel.repaint();
+            }
             return;
         }
 
         if (code == KeyEvent.VK_SPACE) {
             gameState.isSpaceHeld = true;
             // Don't allow starting game with SPACE if in online mode
-            if (!gamePanel.isOnlineMode()) {
+            if (!OnlineMatchManager.getInstance().isOnline()) {
                 gameState.resetRun(animController);
             }
             gamePanel.repaint();
             return;
         }
 
-        if (code == KeyEvent.VK_TAB) {
-            animController.playIfAudible(gameState.sStart);
-            gamePanel.createOnlineRoom();
-            gamePanel.repaint();
-            return;
-        }
+        // Remove old TAB handling for online - now handled by online button click
 
         if (code == KeyEvent.VK_BACK_SPACE) {
             uiSettings.showSettings = !uiSettings.showSettings;
@@ -331,6 +429,7 @@ public class InputHandler implements KeyListener, MouseListener {
 
     @Override
     public void keyTyped(KeyEvent e) {
+        // Name input is now handled in keyPressed for better control
     }
 
     @Override
@@ -349,9 +448,8 @@ public class InputHandler implements KeyListener, MouseListener {
 
     @Override
     public void mouseClicked(MouseEvent e) {
-        if (gameState.isShowOnlineUI()) {
-            handleOnlineUIClick(e);
-        }
+        // Handle online UI clicks
+        OnlineUI.handleClick(e.getX(), e.getY(), gamePanel.getWidth(), gamePanel.getHeight());
     }
 
     @Override
@@ -370,28 +468,4 @@ public class InputHandler implements KeyListener, MouseListener {
     public void mouseExited(MouseEvent e) {
     }
 
-    private void handleOnlineUIClick(MouseEvent e) {
-        int x = e.getX();
-        int y = e.getY();
-
-        int botX = gameState.botBaseX;
-        int botY = gameState.groundY;
-        int buttonWidth = 80;
-        int buttonHeight = 30;
-        int buttonY = botY - 200 + 70;
-
-        Rectangle createRoomButton = new Rectangle(botX - 120, buttonY, buttonWidth, buttonHeight);
-        Rectangle refreshButton = new Rectangle(botX - 30, buttonY, buttonWidth, buttonHeight);
-        Rectangle joinRoomButton = new Rectangle(botX + 60, buttonY, buttonWidth, buttonHeight);
-
-        if (createRoomButton.contains(x, y)) {
-            System.out.println("สร้างห้อง clicked!");
-        } else if (refreshButton.contains(x, y)) {
-            System.out.println("รีเฟรช clicked!");
-        } else if (joinRoomButton.contains(x, y)) {
-            System.out.println("เข้าห้อง clicked!");
-        }
-
-        gamePanel.repaint();
-    }
 }
