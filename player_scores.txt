@@ -1,3 +1,4 @@
+SS,0,0,0,0,1,medieval_king,1755882247074
 DADD,0,0,0,0,1,medieval_king,1755877151311
 AS,0,0,0,0,1,medieval_king,1755878082938
 KING,13,0,3,0,10,mushroom,1755881552025

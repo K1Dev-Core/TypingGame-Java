@@ -409,58 +409,70 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
     }
 
     private void handleGameStart(NetworkMessage message) {
-        if (message.data instanceof String) {
-            String firstWord = (String) message.data;
-
-            if (firstWord == null || firstWord.trim().isEmpty()) {
-                System.err.println("Invalid first word received: " + firstWord);
+        try {
+            if (message == null || message.data == null) {
+                System.err.println("Received null GAME_START message or data");
                 return;
             }
+            
+            if (message.data instanceof String) {
+                String firstWord = (String) message.data;
 
-            matchState = MatchState.RACING;
+                if (firstWord == null || firstWord.trim().isEmpty()) {
+                    System.err.println("Invalid first word received: " + firstWord);
+                    return;
+                }
 
-            gameState.setMultiplayerMode(true);
+                System.out.println("Processing GAME_START with word: " + firstWord);
+                matchState = MatchState.RACING;
 
-            gameState.setCurrentWord(firstWord);
-            gameState.playerIdx = 0;
-            gameState.setOpponentIdx(0);
+                gameState.setMultiplayerMode(true);
 
-            if (localPlayer != null && localPlayer.name != null) {
-                gameState.setPlayerName(localPlayer.name);
+                gameState.setCurrentWord(firstWord);
+                gameState.playerIdx = 0;
+                gameState.setOpponentIdx(0);
+
+                if (localPlayer != null && localPlayer.name != null) {
+                    gameState.setPlayerName(localPlayer.name);
+                }
+                if (opponent != null && opponent.name != null) {
+                    gameState.setOpponentName(opponent.name);
+                }
+
+                gameState.playerHealth = GameConfig.MAX_HEALTH;
+                gameState.botHealth = GameConfig.MAX_HEALTH;
+                gameState.wordsCompleted = 0;
+
+                if (localPlayer != null) {
+                    localPlayer.health = GameConfig.MAX_HEALTH;
+                    localPlayer.wordsCompleted = 0;
+                }
+                if (opponent != null) {
+                    opponent.health = GameConfig.MAX_HEALTH;
+                    opponent.wordsCompleted = 0;
+                }
+
+                gameState.resetToReady();
+                gameState.startGame();
+
+                gameState.resetTypingProgress();
+
+                if (gamePanel != null) {
+                    gamePanel.repaint();
+                }
+
+                NotificationSystem.showSuccess("Fight! Type: " + firstWord);
+
+                System.out.println("Game started successfully. Player health: " + gameState.playerHealth
+                        + ", Bot health: " + gameState.botHealth + ", Word: " + firstWord);
+            } else {
+                System.err.println("Invalid GAME_START message data type: "
+                        + (message.data != null ? message.data.getClass().getName() : "null"));
+                System.err.println("Expected String, got: " + message.data);
             }
-            if (opponent != null && opponent.name != null) {
-                gameState.setOpponentName(opponent.name);
-            }
-
-            gameState.playerHealth = GameConfig.MAX_HEALTH;
-            gameState.botHealth = GameConfig.MAX_HEALTH;
-            gameState.wordsCompleted = 0;
-
-            if (localPlayer != null) {
-                localPlayer.health = GameConfig.MAX_HEALTH;
-                localPlayer.wordsCompleted = 0;
-            }
-            if (opponent != null) {
-                opponent.health = GameConfig.MAX_HEALTH;
-                opponent.wordsCompleted = 0;
-            }
-
-            gameState.resetToReady();
-            gameState.startGame();
-
-            gameState.resetTypingProgress();
-
-            if (gamePanel != null) {
-                gamePanel.repaint();
-            }
-
-            NotificationSystem.showSuccess("Fight! Type: " + firstWord);
-
-            System.out.println("Game started successfully. Player health: " + gameState.playerHealth
-                    + ", Bot health: " + gameState.botHealth + ", Word: " + firstWord);
-        } else {
-            System.err.println("Invalid GAME_START message data: "
-                    + (message.data != null ? message.data.getClass() : "null"));
+        } catch (Exception e) {
+            System.err.println("Error handling GAME_START message: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 

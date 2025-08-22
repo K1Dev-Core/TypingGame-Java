@@ -257,22 +257,9 @@ public class TypingGameServer {
                             System.out.println("  - " + p.name + " (ID: " + p.id + ") Score: " + p.wordsCompleted + " Health: " + p.health);
                         }
 
-                        // Send GAME_START message first and ensure it's fully transmitted
-                        synchronized (this) {
-                            broadcastToRoom(roomId, new NetworkMessage(NetworkMessage.MessageType.GAME_START,
-                                    null, roomId, firstWord));
-
-                            // Wait longer to ensure serialization is complete
-                            try {
-                                Thread.sleep(200);
-                            } catch (InterruptedException ie) {
-                                Thread.currentThread().interrupt();
-                            }
-
-                            // Send ROOM_UPDATE after ensuring GAME_START is processed
-                            broadcastToRoom(roomId, new NetworkMessage(NetworkMessage.MessageType.ROOM_UPDATE,
-                                    null, roomId, new GameRoom(room)));
-                        }
+                        // Send GAME_START message only - no ROOM_UPDATE needed during game start
+                        broadcastToRoom(roomId, new NetworkMessage(NetworkMessage.MessageType.GAME_START,
+                                null, roomId, firstWord));
 
                         ScheduledFuture<?> taskToCancel = countdownTasks.remove(roomId);
                         if (taskToCancel != null) {

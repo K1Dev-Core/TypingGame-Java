@@ -64,7 +64,10 @@ public class GameRoom implements Serializable {
         }
         
         this.isGameStarted = other.isGameStarted;
-        this.currentWord = other.currentWord;
+        // Ensure currentWord is always a valid String, never null or other object type
+        this.currentWord = (other.currentWord != null && other.currentWord instanceof String) 
+                          ? (String) other.currentWord 
+                          : "";
         this.gameStartTime = other.gameStartTime;
         this.maxPlayers = other.maxPlayers;
         this.roomState = other.roomState;
