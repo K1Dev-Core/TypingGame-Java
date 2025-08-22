@@ -5,6 +5,7 @@ import java.net.*;
 import shared.*;
 
 public class NetworkClient {
+
     private Socket socket;
     private ObjectInputStream input;
     private ObjectOutputStream output;
@@ -13,6 +14,7 @@ public class NetworkClient {
     private Thread readerThread;
 
     public interface NetworkListener {
+
         void onMessageReceived(NetworkMessage message);
 
         void onDisconnected();
@@ -43,21 +45,42 @@ public class NetworkClient {
 
     private void readMessages() {
         try {
-            while (isConnected) {
+            while (isConnected && socket != null && !socket.isClosed()) {
                 try {
                     NetworkMessage message = (NetworkMessage) input.readObject();
-                    if (listener != null) {
+                    if (message != null && listener != null) {
                         listener.onMessageReceived(message);
                     }
-                } catch (ClassCastException | ClassNotFoundException | StreamCorruptedException e) {
+                } catch (ClassCastException | ClassNotFoundException e) {
                     System.err.println("Message serialization error: " + e.getMessage());
-                    System.err.println("Attempting to continue...");
-                    try {
-                        input.reset();
-                    } catch (IOException resetException) {
-                        System.err.println("Failed to reset input stream: " + resetException.getMessage());
-                        break;
+                    System.err.println("Error details: " + e.getClass().getSimpleName());
+                    if (e.getCause() != null) {
+                        System.err.println("Caused by: " + e.getCause().getMessage());
                     }
+                    System.err.println("Skipping corrupted message and continuing...");
+
+                    // Log the error but don't break the connection for this type of error
+                    continue;
+                } catch (StreamCorruptedException e) {
+                    System.err.println("Stream corruption detected: " + e.getMessage());
+                    System.err.println("This usually indicates a synchronization issue on the server.");
+                    System.err.println("Attempting to recover...");
+
+                    // Try to reset the input stream if possible
+                    try {
+                        Thread.sleep(100); // Wait a bit for server to stabilize
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                    break; // Break to trigger reconnection
+                } catch (EOFException e) {
+                    System.err.println("Server closed connection unexpectedly: " + e.getMessage());
+                    break;
+                } catch (SocketException e) {
+                    if (isConnected) {
+                        System.err.println("Socket error: " + e.getMessage());
+                    }
+                    break;
                 }
             }
         } catch (IOException e) {
@@ -90,12 +113,15 @@ public class NetworkClient {
     public void disconnect() {
         isConnected = false;
         try {
-            if (socket != null)
+            if (socket != null) {
                 socket.close();
-            if (input != null)
+            }
+            if (input != null) {
                 input.close();
-            if (output != null)
+            }
+            if (output != null) {
                 output.close();
+            }
         } catch (IOException e) {
             System.err.println("Error closing connection: " + e.getMessage());
         }

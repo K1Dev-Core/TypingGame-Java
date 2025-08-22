@@ -6,6 +6,7 @@ import java.util.List;
 import shared.*;
 
 public class ClientHandler implements Runnable {
+
     private Socket socket;
     private ObjectInputStream input;
     private ObjectOutputStream output;
@@ -36,18 +37,18 @@ public class ClientHandler implements Runnable {
                     NetworkMessage message = (NetworkMessage) input.readObject();
                     handleMessage(message);
                 } catch (ClassCastException | ClassNotFoundException e) {
-                    System.err.println("Message parsing error for player " + 
-                                     (player != null ? player.name : "unknown") + ": " + e.getMessage());
+                    System.err.println("Message parsing error for player "
+                            + (player != null ? player.name : "unknown") + ": " + e.getMessage());
                 }
             }
         } catch (IOException e) {
             if (isConnected) {
                 if (e.getMessage().contains("Broken pipe") || e.getMessage().contains("Connection reset")) {
-                    System.out.println("Client connection lost (" + e.getMessage() + ") for player: " + 
-                                     (player != null ? player.name : "Unknown"));
+                    System.out.println("Client connection lost (" + e.getMessage() + ") for player: "
+                            + (player != null ? player.name : "Unknown"));
                 } else {
-                    System.out.println("Client disconnected (" + e.getMessage() + "): " + 
-                                     (player != null ? player.name : "Unknown"));
+                    System.out.println("Client disconnected (" + e.getMessage() + "): "
+                            + (player != null ? player.name : "Unknown"));
                 }
             }
         } finally {
@@ -62,31 +63,31 @@ public class ClientHandler implements Runnable {
             case PLAYER_JOIN:
                 if (message.data instanceof Player) {
                     Player playerData = (Player) message.data;
-                    
+
                     if (player == null) {
                         player = new Player(playerData.id, playerData.name, playerData.selectedCharacterId);
                         server.addClient(player.id, this);
-                        System.out.println("Registered player: " + player.name + " (ID: " + player.id + 
-                                          ") with character: " + player.selectedCharacterId);
+                        System.out.println("Registered player: " + player.name + " (ID: " + player.id
+                                + ") with character: " + player.selectedCharacterId);
                         sendMessage(new NetworkMessage(NetworkMessage.MessageType.PLAYER_JOIN,
                                 player.id, null, "Player registered successfully"));
                     } else {
                         if (!playerData.selectedCharacterId.equals(player.selectedCharacterId)) {
-                            System.out.println("📡 Character update: " + player.name + " changed from " + 
-                                             player.selectedCharacterId + " to " + playerData.selectedCharacterId);
+                            System.out.println("📡 Character update: " + player.name + " changed from "
+                                    + player.selectedCharacterId + " to " + playerData.selectedCharacterId);
                             player.selectedCharacterId = playerData.selectedCharacterId;
-                            
+
                             if (currentRoomId != null) {
                                 GameRoom room = server.getRoom(currentRoomId);
                                 if (room != null) {
                                     Player roomPlayer = room.getPlayer(player.id);
                                     if (roomPlayer != null) {
                                         roomPlayer.selectedCharacterId = playerData.selectedCharacterId;
-                                        
+
                                         server.broadcastToRoom(currentRoomId,
                                                 new NetworkMessage(NetworkMessage.MessageType.PLAYER_JOIN,
                                                         player.id, currentRoomId, roomPlayer));
-                                        
+
                                         server.broadcastToRoom(currentRoomId,
                                                 new NetworkMessage(NetworkMessage.MessageType.ROOM_UPDATE,
                                                         player.id, currentRoomId, new GameRoom(room)));
@@ -97,7 +98,7 @@ public class ClientHandler implements Runnable {
                     }
                 }
                 break;
-                
+
             case JOIN_ROOM:
                 if (player == null) {
                     player = (Player) message.data;
@@ -140,38 +141,35 @@ public class ClientHandler implements Runnable {
                         System.out.println("Created fallback player: " + playerName + " (ID: " + player.id + ")");
                     }
 
-                    System.out.println("Creating room: " + roomName + " for player: " + player.name + 
-                                     " with character: " + player.selectedCharacterId);
+                    System.out.println("Creating room: " + roomName + " for player: " + player.name
+                            + " with character: " + player.selectedCharacterId);
                     String roomId = server.createRoom(roomName, player);
                     currentRoomId = roomId;
-                    
+
                     System.out.println("Room created/joined successfully: " + roomId);
                     sendMessage(new NetworkMessage(NetworkMessage.MessageType.CREATE_ROOM,
                             player.id, roomId, roomId));
-                    
+
                     GameRoom room = server.getRoom(roomId);
                     if (room != null && room.isFull()) {
                         System.out.println("Room is now full! Starting countdown...");
-                        
 
                         room.roomState = GameRoom.RoomState.COUNTDOWN;
                         room.countdown = 10;
                         room.countdownStartTime = System.currentTimeMillis();
-                        
 
                         room.startCountdown();
-                        
+
                         for (Player roomPlayer : room.players) {
                             server.broadcastToRoom(roomId,
-                                new NetworkMessage(NetworkMessage.MessageType.PLAYER_JOIN,
-                                    null, roomId, roomPlayer));
+                                    new NetworkMessage(NetworkMessage.MessageType.PLAYER_JOIN,
+                                            null, roomId, roomPlayer));
                         }
-                        
 
                         server.broadcastToRoom(roomId, new NetworkMessage(
-                            NetworkMessage.MessageType.COUNTDOWN_START,
-                            null, roomId, room.countdown));
-                        
+                                NetworkMessage.MessageType.COUNTDOWN_START,
+                                null, roomId, room.countdown));
+
                         server.scheduleCountdown(roomId);
                     }
 
@@ -237,19 +235,19 @@ public class ClientHandler implements Runnable {
                         if (room != null) {
                             System.out.println("=== WORD COMPLETION ATTACK ===");
                             System.out.println("Attacker: " + player.name + " (ID: " + player.id + ") with character: " + player.selectedCharacterId);
-                            
+
                             System.out.println("BEFORE ATTACK - Room players:");
                             for (Player p : room.players) {
-                                System.out.println("  Player: " + p.name + " (ID: " + p.id + ") Health: " + p.health + 
-                                                 " Character: " + p.selectedCharacterId + " Words: " + p.wordsCompleted);
+                                System.out.println("  Player: " + p.name + " (ID: " + p.id + ") Health: " + p.health
+                                        + " Character: " + p.selectedCharacterId + " Words: " + p.wordsCompleted);
                             }
-                            
+
                             Player completingPlayer = room.getPlayer(player.id);
                             if (completingPlayer != null) {
                                 completingPlayer.wordsCompleted++;
                                 System.out.println("Updated attacker score to: " + completingPlayer.wordsCompleted);
                             }
-                            
+
                             for (Player p : room.players) {
                                 if (!p.id.equals(player.id)) {
                                     int oldHealth = p.health;
@@ -257,35 +255,34 @@ public class ClientHandler implements Runnable {
                                     System.out.println("DAMAGE APPLIED: Player " + p.name + " health: " + oldHealth + " -> " + p.health);
                                 }
                             }
-                            
+
                             System.out.println("AFTER ATTACK - Room players:");
                             for (Player p : room.players) {
-                                System.out.println("  Player: " + p.name + " (ID: " + p.id + ") Health: " + p.health + 
-                                                 " Character: " + p.selectedCharacterId + " Words: " + p.wordsCompleted);
+                                System.out.println("  Player: " + p.name + " (ID: " + p.id + ") Health: " + p.health
+                                        + " Character: " + p.selectedCharacterId + " Words: " + p.wordsCompleted);
                             }
-                            
+
                             String oldWord = room.currentWord;
                             String newWord = server.getNextWord(room.currentWord);
                             room.currentWord = newWord;
                             System.out.println("Word synchronized for all players: " + oldWord + " -> " + newWord);
-                            
+
                             System.out.println("1. Broadcasting PLAYER_TYPED attack message...");
                             server.broadcastToRoom(currentRoomId,
                                     new NetworkMessage(NetworkMessage.MessageType.PLAYER_TYPED,
                                             player.id, currentRoomId, "WORD_COMPLETE"));
-                            
+
                             System.out.println("2. Broadcasting GAME_STATE_UPDATE with new word: " + newWord);
                             server.broadcastToRoom(currentRoomId,
                                     new NetworkMessage(NetworkMessage.MessageType.GAME_STATE_UPDATE,
                                             null, currentRoomId, newWord));
-                            
-                        
+
                             boolean gameEnded = false;
                             String winner = null;
                             for (Player p : room.players) {
                                 if (p.health <= 0) {
                                     gameEnded = true;
-                                  
+
                                     for (Player otherPlayer : room.players) {
                                         if (otherPlayer.health > 0) {
                                             winner = otherPlayer.id;
@@ -295,15 +292,15 @@ public class ClientHandler implements Runnable {
                                     break;
                                 }
                             }
-                            
+
                             if (gameEnded && winner != null) {
                                 System.out.println("GAME OVER! Winner: " + winner);
-                               
+
                                 for (Player p : room.players) {
                                     String result = p.id.equals(winner) ? "WIN" : "LOSE";
-                                    server.sendMessageToClient(p.id, 
-                                        new NetworkMessage(NetworkMessage.MessageType.GAME_OVER,
-                                                p.id, currentRoomId, result));
+                                    server.sendMessageToClient(p.id,
+                                            new NetworkMessage(NetworkMessage.MessageType.GAME_OVER,
+                                                    p.id, currentRoomId, result));
                                 }
                                 room.roomState = GameRoom.RoomState.GAME_ENDED;
                             } else {
@@ -313,7 +310,7 @@ public class ClientHandler implements Runnable {
                                         new NetworkMessage(NetworkMessage.MessageType.ROOM_UPDATE,
                                                 null, currentRoomId, roomCopy));
                             }
-                            
+
                             System.out.println("=== ATTACK SEQUENCE COMPLETE ===");
                         }
                     } else {
@@ -333,7 +330,6 @@ public class ClientHandler implements Runnable {
                                     }
                                 }
 
-                        
                                 boolean gameEnded = false;
                                 String winner = null;
                                 for (Player p : room.players) {
@@ -348,14 +344,14 @@ public class ClientHandler implements Runnable {
                                         break;
                                     }
                                 }
-                                
+
                                 if (gameEnded && winner != null) {
                                     System.out.println("LEGACY GAME OVER! Winner: " + winner);
                                     for (Player p : room.players) {
                                         String result = p.id.equals(winner) ? "WIN" : "LOSE";
-                                        server.sendMessageToClient(p.id, 
-                                            new NetworkMessage(NetworkMessage.MessageType.GAME_OVER,
-                                                    p.id, currentRoomId, result));
+                                        server.sendMessageToClient(p.id,
+                                                new NetworkMessage(NetworkMessage.MessageType.GAME_OVER,
+                                                        p.id, currentRoomId, result));
                                     }
                                     room.roomState = GameRoom.RoomState.GAME_ENDED;
                                     return;
@@ -363,15 +359,15 @@ public class ClientHandler implements Runnable {
 
                                 String newWord = server.getNextWord(room.currentWord);
                                 room.currentWord = newWord;
-                                
+
                                 server.broadcastToRoom(currentRoomId,
                                         new NetworkMessage(NetworkMessage.MessageType.PLAYER_TYPED,
                                                 player.id, currentRoomId, "WORD_COMPLETE"));
-                                
+
                                 server.broadcastToRoom(currentRoomId,
                                         new NetworkMessage(NetworkMessage.MessageType.GAME_STATE_UPDATE,
                                                 null, currentRoomId, newWord));
-                                
+
                                 server.broadcastToRoom(currentRoomId,
                                         new NetworkMessage(NetworkMessage.MessageType.ROOM_UPDATE,
                                                 null, currentRoomId, new GameRoom(room)));
@@ -404,44 +400,49 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    public void sendMessage(NetworkMessage message) {
+    public synchronized void sendMessage(NetworkMessage message) {
         try {
             if (output != null && isConnected && !socket.isClosed()) {
                 output.writeObject(message);
                 output.flush();
+                // Small delay to prevent rapid successive writes causing corruption
+                try {
+                    Thread.sleep(5);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
             }
         } catch (IOException e) {
             if (e.getMessage().contains("Broken pipe") || e.getMessage().contains("Connection reset")) {
-                System.err.println("Client connection lost (" + e.getMessage() + ") for player: " + 
-                                 (player != null ? player.name : "unknown"));
+                System.err.println("Client connection lost (" + e.getMessage() + ") for player: "
+                        + (player != null ? player.name : "unknown"));
             } else {
                 System.err.println("Error sending message: " + e.getMessage());
             }
-          
+
             isConnected = false;
         }
     }
 
     private void disconnect() {
         isConnected = false;
-        
+
         try {
             if (player != null && currentRoomId != null) {
                 GameRoom room = server.getRoom(currentRoomId);
                 if (room != null) {
-                
+
                     NetworkMessage disconnectMsg = new NetworkMessage(
-                        NetworkMessage.MessageType.PLAYER_DISCONNECTED,
-                        player.id,
-                        currentRoomId,
-                        player.name + " disconnected"
+                            NetworkMessage.MessageType.PLAYER_DISCONNECTED,
+                            player.id,
+                            currentRoomId,
+                            player.name + " disconnected"
                     );
                     server.broadcastToRoom(currentRoomId, disconnectMsg);
-                    
-                  
+
                     if (room.players.size() > 1) {
                         server.leaveRoom(currentRoomId, player.id);
-                     
+
                         GameRoom updatedRoom = server.getRoom(currentRoomId);
                         if (updatedRoom != null) {
                             server.broadcastToRoom(currentRoomId,
@@ -449,7 +450,7 @@ public class ClientHandler implements Runnable {
                                             player.id, currentRoomId, player));
                         }
                     } else {
-                      
+
                         server.leaveRoom(currentRoomId, player.id);
                     }
                 }
@@ -463,12 +464,15 @@ public class ClientHandler implements Runnable {
         }
 
         try {
-            if (socket != null && !socket.isClosed())
+            if (socket != null && !socket.isClosed()) {
                 socket.close();
-            if (input != null)
+            }
+            if (input != null) {
                 input.close();
-            if (output != null)
+            }
+            if (output != null) {
                 output.close();
+            }
         } catch (IOException e) {
 
         }

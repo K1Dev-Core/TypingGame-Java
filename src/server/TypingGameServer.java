@@ -7,6 +7,7 @@ import java.util.concurrent.*;
 import shared.*;
 
 public class TypingGameServer {
+
     private static final int PORT = 8888;
     private ServerSocket serverSocket;
     private boolean isRunning;
@@ -56,45 +57,45 @@ public class TypingGameServer {
 
     public synchronized String createRoom(String roomName, Player host) {
         System.out.println("Creating/joining room: " + roomName + " for player: " + host.name);
-        
+
         for (GameRoom room : rooms.values()) {
-            if (room.name.equals(roomName) && 
-                room.roomState == GameRoom.RoomState.WAITING_FOR_PLAYERS &&
-                room.players.size() < room.maxPlayers) {
+            if (room.name.equals(roomName)
+                    && room.roomState == GameRoom.RoomState.WAITING_FOR_PLAYERS
+                    && room.players.size() < room.maxPlayers) {
                 if (room.addPlayer(host)) {
                     System.out.println("Player " + host.name + " joined existing room: " + room.name + " (ID: " + room.id + ")");
                     System.out.println("Room now has " + room.players.size() + "/" + room.maxPlayers + " players");
-                    
+
                     if (room.isFull()) {
                         System.out.println("Room is full! Ready to start countdown...");
                         room.roomState = GameRoom.RoomState.WAITING_FOR_HOST;
-                        
+
                         for (Player player : room.players) {
                             broadcastToRoom(room.id, new NetworkMessage(
-                                NetworkMessage.MessageType.PLAYER_JOIN,
-                                null, room.id, player));
+                                    NetworkMessage.MessageType.PLAYER_JOIN,
+                                    null, room.id, player));
                         }
-                        
+
                         System.out.println("Room ready - transitioning to WAITING_FOR_HOST state");
-                        
+
                         System.out.println("Auto-starting countdown since room is full...");
                         room.roomState = GameRoom.RoomState.COUNTDOWN;
                         room.countdown = 10;
                         room.countdownStartTime = System.currentTimeMillis();
-                        
+
                         System.out.println("Broadcasting COUNTDOWN_START with initial countdown: " + room.countdown);
                         broadcastToRoom(room.id, new NetworkMessage(
-                            NetworkMessage.MessageType.COUNTDOWN_START,
-                            null, room.id, room.countdown));
-                        
+                                NetworkMessage.MessageType.COUNTDOWN_START,
+                                null, room.id, room.countdown));
+
                         scheduleCountdown(room.id);
                     }
-                    
+
                     return room.id;
                 }
             }
         }
-        
+
         String roomId = UUID.randomUUID().toString().substring(0, 8);
         GameRoom room = new GameRoom(roomId, roomName, host);
         rooms.put(roomId, room);
@@ -126,12 +127,12 @@ public class TypingGameServer {
         GameRoom room = rooms.get(roomId);
         if (room != null) {
             room.removePlayer(playerId);
-            
-            if (room.players.isEmpty() && 
-                room.roomState != GameRoom.RoomState.COUNTDOWN && 
-                room.roomState != GameRoom.RoomState.GAME_STARTED) {
+
+            if (room.players.isEmpty()
+                    && room.roomState != GameRoom.RoomState.COUNTDOWN
+                    && room.roomState != GameRoom.RoomState.GAME_STARTED) {
                 rooms.remove(roomId);
-           
+
                 ScheduledFuture<?> task = countdownTasks.remove(roomId);
                 if (task != null) {
                     task.cancel(false);
@@ -167,10 +168,12 @@ public class TypingGameServer {
         clients.remove(playerId);
     }
 
-    public void broadcastToRoom(String roomId, NetworkMessage message) {
+    public synchronized void broadcastToRoom(String roomId, NetworkMessage message) {
         GameRoom room = rooms.get(roomId);
         if (room != null && message != null) {
             System.out.println("Broadcasting to room " + room.name + " with " + room.players.size() + " players");
+
+            // Send to each player sequentially to prevent serialization conflicts
             for (Player player : room.players) {
                 if (player != null && player.id != null) {
                     System.out.println("  Sending to player: " + player.name + " (ID: " + player.id + ")");
@@ -178,9 +181,13 @@ public class TypingGameServer {
                     if (handler != null) {
                         try {
                             handler.sendMessage(message);
+                            // Small delay to ensure message is fully transmitted
+                            Thread.sleep(10);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
                         } catch (Exception e) {
                             System.err.println("Error sending message to player " + player.name + ": " + e.getMessage());
-                            
+
                             if (!message.type.toString().contains("GAME") && !message.type.toString().contains("COUNTDOWN")) {
                                 clients.remove(player.id);
                             }
@@ -215,7 +222,7 @@ public class TypingGameServer {
     public String getNextWord() {
         return wordBank.getRandomWord();
     }
-    
+
     public String getNextWord(String currentWord) {
         return wordBank.getRandomWord(currentWord);
     }
@@ -225,7 +232,7 @@ public class TypingGameServer {
         if (existingTask != null) {
             existingTask.cancel(false);
         }
-        
+
         ScheduledFuture<?> countdownTask = countdownScheduler.scheduleAtFixedRate(() -> {
             try {
                 GameRoom room = rooms.get(roomId);
@@ -234,7 +241,6 @@ public class TypingGameServer {
 
                     if (gameStarted) {
                         System.out.println("Game starting in room " + room.name + "!");
-                        
 
                         for (Player p : room.players) {
                             p.wordsCompleted = 0;
@@ -244,19 +250,30 @@ public class TypingGameServer {
 
                         String firstWord = getNextWord();
                         room.currentWord = firstWord;
-                        
+
                         System.out.println("Starting game with word: " + firstWord);
                         System.out.println("Broadcasting to " + room.players.size() + " players:");
                         for (Player p : room.players) {
                             System.out.println("  - " + p.name + " (ID: " + p.id + ") Score: " + p.wordsCompleted + " Health: " + p.health);
                         }
 
-                        broadcastToRoom(roomId, new NetworkMessage(NetworkMessage.MessageType.GAME_START,
-                                null, roomId, firstWord));
-                        
-                        broadcastToRoom(roomId, new NetworkMessage(NetworkMessage.MessageType.ROOM_UPDATE,
-                                null, roomId, new GameRoom(room)));
-                        
+                        // Send GAME_START message first and ensure it's fully transmitted
+                        synchronized (this) {
+                            broadcastToRoom(roomId, new NetworkMessage(NetworkMessage.MessageType.GAME_START,
+                                    null, roomId, firstWord));
+
+                            // Wait longer to ensure serialization is complete
+                            try {
+                                Thread.sleep(200);
+                            } catch (InterruptedException ie) {
+                                Thread.currentThread().interrupt();
+                            }
+
+                            // Send ROOM_UPDATE after ensuring GAME_START is processed
+                            broadcastToRoom(roomId, new NetworkMessage(NetworkMessage.MessageType.ROOM_UPDATE,
+                                    null, roomId, new GameRoom(room)));
+                        }
+
                         ScheduledFuture<?> taskToCancel = countdownTasks.remove(roomId);
                         if (taskToCancel != null) {
                             taskToCancel.cancel(false);
@@ -282,7 +299,7 @@ public class TypingGameServer {
                 }
             }
         }, 0, 1, TimeUnit.SECONDS);
-        
+
         countdownTasks.put(roomId, countdownTask);
     }
 
@@ -300,23 +317,23 @@ public class TypingGameServer {
         }
         System.out.println("Broadcasted room list update to " + clients.size() + " clients");
     }
-    
+
     public boolean isRunning() {
         return isRunning;
     }
-    
+
     public int getConnectedPlayersCount() {
         return clients.size();
     }
-    
+
     public int getActiveRoomsCount() {
         return rooms.size();
     }
-    
+
     public Map<String, GameRoom> getRooms() {
         return new HashMap<>(rooms);
     }
-    
+
     public Map<String, ClientHandler> getClients() {
         return new HashMap<>(clients);
     }

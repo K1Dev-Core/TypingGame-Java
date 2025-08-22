@@ -67,7 +67,7 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
     }
 
     public boolean connectToServer() {
-        return connectToServer("localhost", 8888);
+        return connectToServer("89.38.101.103", 8888);
     }
 
     public void cancelMatchmaking() {
@@ -100,7 +100,7 @@ public class OnlineMatchManager implements NetworkClient.NetworkListener {
 
     public void startMatchmaking(String playerName) {
         if (!isConnected) {
-            if (!connectToServer("localhost", 8888)) {
+            if (!connectToServer("89.38.101.103", 8888)) {
                 return;
             }
         }
